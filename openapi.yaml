@@ -155,7 +155,11 @@ info:
   version: 0.1.0
   contact: {}
 tags: []
-servers: []
+servers:
+  - url: https://pods.roadbeat.net
+    description: Production
+  - url: http://localhost:3400
+    description: Development
 components:
   securitySchemes:
     bearer:
