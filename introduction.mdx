@@ -1,38 +1,43 @@
 ---
 title: Introduction
-description: Portable, static content hosting for individual publishers — part of the roadbeat platform.
+description: >-
+  Portable, static content hosting for individual publishers — part of the
+  roadbeat platform.
 ---
-
 The **roadbeat Content Pod** is a portable, static content hosting solution for individual publishers. It generates signed content bundles — HTML, JSON metadata, and media assets — that serve as the canonical origin for your published content, discoverable via roadbeat Discovery Nodes.
 
 Content Pods embody the roadbeat principle of **data sovereignty**: your content lives where you control it, not on a platform that can change terms, throttle access, or disappear.
 
-<Callout kind="info">
+<Callout kind="info" collapsed="false">
   Content Pods are designed for individual publishers who don't operate their own Studio Node. Organizations with teams and workflows should use [roadbeat Studio](https://docs.roadbeat.net/studio) instead.
 </Callout>
 
 ## Why Content Pods?
 
-<Columns cols={3}>
-  <Card title="Portable" icon="arrow-right-left" href="/concepts">
+<Columns cols="3">
+  <Card title="Portable" href="/concepts" icon="arrow-right-left" horizontal="false">
     Export and move between hosting providers at any time. You are never locked in.
   </Card>
-  <Card title="Signed & Verified" icon="shield-check" href="/architecture/content-signing">
+
+  <Card title="Signed & Verified" href="/architecture/content-signing" icon="shield-check" horizontal="false">
     Every piece of content is cryptographically signed with Ed25519 for authenticity.
   </Card>
-  <Card title="Discoverable" icon="search" href="/guides/studio-integration">
+
+  <Card title="Discoverable" href="/guides/studio-integration" icon="search" horizontal="false">
     Teasers published to Discovery Nodes link back to your pod as the canonical source.
   </Card>
 </Columns>
 
-<Columns cols={3}>
-  <Card title="Static & Fast" icon="zap" href="/architecture/pod-structure">
+<Columns cols="3">
+  <Card title="Static & Fast" href="/architecture/pod-structure" icon="zap" horizontal="false">
     Pre-rendered HTML and JSON — no server-side processing, no vulnerabilities.
   </Card>
-  <Card title="Optional Interactivity" icon="sparkles" href="/guides/dynamic-features">
+
+  <Card title="Optional Interactivity" href="/guides/dynamic-features" icon="sparkles" horizontal="false">
     Add comments, reactions, statistics, newsletters, and RSS when you need them.
   </Card>
-  <Card title="European Hosting" icon="globe" href="/guides/managed-hosting">
+
+  <Card title="European Hosting" href="/guides/managed-hosting" icon="globe" horizontal="false">
     Managed hosting on European infrastructure with automatic CDN and SSL.
   </Card>
 </Columns>
@@ -55,17 +60,21 @@ graph TD
 
 ## Get Started
 
-<Columns cols={2}>
-  <Card title="Quickstart" icon="zap" href="/quickstart">
+<Columns cols="2">
+  <Card title="Quickstart" href="/quickstart" icon="zap" horizontal="false">
     Create your first Content Pod and publish content in minutes.
   </Card>
-  <Card title="Core Concepts" icon="layers" href="/concepts">
+
+  <Card title="Core Concepts" href="/concepts" icon="layers" horizontal="false">
     Understand pods, bundles, signing, storage providers, and the publishing pipeline.
   </Card>
-  <Card title="API Reference" icon="code" href="/api-reference/overview">
+
+  <Card title="API Reference" href="/api-reference/overview" icon="code" horizontal="false">
     Explore the Pod Hosting and Cloud Provisioner REST APIs.
   </Card>
-  <Card title="Self-Hosting" icon="terminal" href="/deployment/self-hosting">
+
+  <Card title="Self-Hosting" href="/deployment/self-hosting" icon="terminal" horizontal="false">
     Run the full stack with Docker Compose.
   </Card>
 </Columns>
+
