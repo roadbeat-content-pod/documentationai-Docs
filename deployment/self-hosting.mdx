@@ -1,0 +1,194 @@
+---
+title: Self-Hosting
+description: Run the Content Pod stack locally or in production with Docker Compose.
+---
+
+The Content Pod ecosystem ships with a multi-stage Dockerfile and Docker Compose configuration for running the full stack — Pod Hosting API, Cloud Provisioner, Pod Dashboard, PostgreSQL, and Redis.
+
+## Prerequisites
+
+- **Docker** 24+ and **Docker Compose** v2
+- Alternatively, for local development without Docker: **Node.js** 20+, **pnpm** 9+
+
+## Quick Start with Docker Compose
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/roadbeat/content-pod.git
+    cd content-pod
+    ```
+  </Step>
+  <Step title="Start all services">
+    ```bash
+    docker compose up -d
+    ```
+
+    This starts 5 services:
+
+    | Service | Port | Description |
+    |---------|------|-------------|
+    | `pod-hosting` | 3400 | Managed hosting REST API |
+    | `pod-dashboard` | 3401 | Angular management dashboard |
+    | `cloud-provisioner` | 3402 | Infrastructure provisioning API |
+    | `postgres` | 5432 | PostgreSQL 16 database |
+    | `redis` | 6379 | Redis 7 cache |
+  </Step>
+  <Step title="Verify health">
+    ```bash
+    curl http://localhost:3400/health
+    curl http://localhost:3402/health
+    ```
+
+    Both endpoints should return `200 OK` with component health status.
+  </Step>
+</Steps>
+
+## Building Individual Targets
+
+The Dockerfile uses multi-stage builds. You can build each service independently:
+
+<Tabs>
+  <Tab title="Pod Hosting" icon="server">
+    ```bash
+    docker build -t pod-hosting --target pod-hosting .
+    docker run -p 3400:3400 \
+      -e DATABASE_URL=postgresql://postgres:postgres@host:5432/pod_hosting \
+      -e REDIS_URL=redis://host:6379 \
+      -e JWT_SECRET=your-secret-key \
+      pod-hosting
+    ```
+  </Tab>
+  <Tab title="Cloud Provisioner" icon="cloud">
+    ```bash
+    docker build -t cloud-provisioner --target cloud-provisioner .
+    docker run -p 3402:3402 \
+      -e DATABASE_URL=postgresql://postgres:postgres@host:5432/cloud_provisioner \
+      -e HETZNER_API_TOKEN=your-token \
+      cloud-provisioner
+    ```
+  </Tab>
+</Tabs>
+
+## Local Development (without Docker)
+
+<Steps>
+  <Step title="Install dependencies">
+    ```bash
+    pnpm install
+    ```
+  </Step>
+  <Step title="Build all packages">
+    ```bash
+    pnpm -r run build
+    ```
+  </Step>
+  <Step title="Run tests">
+    ```bash
+    pnpm -r test
+    ```
+
+    All 522 tests should pass across 8 packages.
+  </Step>
+  <Step title="Start a service">
+    ```bash
+    # Pod Hosting (port 3400)
+    cd apps/pod-hosting && pnpm start:dev
+
+    # Cloud Provisioner (port 3402)
+    cd apps/cloud-provisioner && pnpm start:dev
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+### Pod Hosting (`apps/pod-hosting`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `3400` | HTTP port |
+| `DATABASE_URL` | — | PostgreSQL connection string |
+| `REDIS_URL` | — | Redis connection string |
+| `JWT_SECRET` | `dev-secret-change-in-production` | JWT signing secret |
+| `NODE_ENV` | `development` | Environment (`development` / `production`) |
+
+### Cloud Provisioner (`apps/cloud-provisioner`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `3402` | HTTP port |
+| `DATABASE_URL` | — | PostgreSQL connection string |
+| `HETZNER_API_TOKEN` | — | Hetzner Cloud API token |
+| `HETZNER_DEFAULT_LOCATION` | `fsn1` | Default server location |
+| `HETZNER_DEFAULT_SERVER_TYPE` | `cx22` | Default server type |
+| `CONTABO_CLIENT_ID` | — | Contabo OAuth client ID |
+| `CONTABO_CLIENT_SECRET` | — | Contabo OAuth client secret |
+| `CONTABO_API_USER` | — | Contabo API username |
+| `CONTABO_API_PASSWORD` | — | Contabo API password |
+| `CONTABO_DEFAULT_REGION` | `EU` | Default Contabo region |
+
+<Callout kind="danger">
+  Never use the default `JWT_SECRET` in production. Generate a strong random secret of at least 32 characters.
+</Callout>
+
+## Production Deployment
+
+For production, the Docker images include:
+
+- **Health checks** — `/health` endpoint polled every 30 seconds
+- **Automatic restart** — `unless-stopped` restart policy
+- **Security middleware** — rate limiting, security headers, input sanitization
+- **Structured logging** — JSON-formatted logs for aggregation
+
+### Recommended Production Setup
+
+```yaml
+# docker-compose.prod.yml additions
+services:
+  pod-hosting:
+    environment:
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET}       # From .env or secrets manager
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+```
+
+## CI/CD
+
+The repository includes a GitHub Actions workflow (`.github/workflows/ci.yml`) that runs on pushes to `main`/`develop` and PRs to `main`:
+
+<Steps>
+  <Step title="Matrix build">
+    Tests run on Node.js 20 and 22 for compatibility.
+  </Step>
+  <Step title="Install">
+    `pnpm install --frozen-lockfile`
+  </Step>
+  <Step title="Lint">
+    Code quality checks across all packages.
+  </Step>
+  <Step title="Test">
+    All 522 tests across 8 packages.
+  </Step>
+  <Step title="Build">
+    TypeScript compilation for all packages and apps.
+  </Step>
+</Steps>
+
+## Test Counts by Package
+
+| Package | Tests |
+|---------|-------|
+| `@roadbeat/content-pod-generator` | 84 |
+| `@roadbeat/content-pod-storage` | 26 |
+| `@roadbeat/dynamic-features` | 101 |
+| `@roadbeat/studio-integration` | 50 |
+| `@roadbeat/pod-portability` | 44 |
+| `@roadbeat/production-readiness` | 110 |
+| `pod-hosting` | 67 |
+| `cloud-provisioner` | 40 |
+| **Total** | **522** |

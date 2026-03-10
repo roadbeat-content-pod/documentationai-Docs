@@ -1,33 +1,42 @@
 ---
-title: Help Center (Sample)
+title: Help Center
+description: Find answers, troubleshoot issues, and follow guides for Content Pod tasks.
 ---
 
-<Callout kind="alert">
-This Help Center is sample content. Replace the cards and contact details with your real support paths.
-</Callout>
+<Columns cols={3}>
+  <Card title="FAQs" icon="help-circle" href="/help-center/faq/general">
+    Quick answers to common questions about Content Pods, storage, and hosting.
+  </Card>
 
-<Columns cols={2}>
-  <Card title="FAQs" icon="help-circle" href="/help-center/faq/getting-started" horizontal>
-    Starter answers you can rewrite.
+  <Card title="Troubleshooting" icon="alert-triangle" href="/help-center/troubleshooting/common-errors">
+    Fix API errors, signing issues, storage problems, and migration failures.
   </Card>
-  <Card title="Troubleshooting" icon="alert-triangle" href="/help-center/troubleshooting/install-error" horizontal>
-    Common issues and fixes.
-  </Card>
-  <Card title="Guides" icon="book-open" href="/help-center/guides/setup-project" horizontal>
-    How-to guides for setup and onboarding.
-  </Card>
-  <Card title="Changelog" icon="clock" href="/changelog" horizontal>
-    Track updates after you go live.
+
+  <Card title="Guides" icon="book-open" href="/help-center/guides/custom-domain">
+    Step-by-step walkthroughs for custom domains, backups, and recovery.
   </Card>
 </Columns>
 
-## Contact Support
+## Popular Topics
 
 <Columns cols={2}>
-  <Card title="Email Support" icon="mail" href="mailto:support@yourcompany.com">
-    Replace with your support email.
+  <Card title="General Questions" icon="help-circle" href="/help-center/faq/general">
+    What is a Content Pod? Who should use it? How does signing work?
   </Card>
-  <Card title="Community" icon="users" href="https://community.yourcompany.com" target="_blank">
-    Link to your community space.
+  <Card title="Storage & Hosting FAQ" icon="hard-drive" href="/help-center/faq/storage-hosting">
+    Storage providers, pricing tiers, CDN, and custom domains.
+  </Card>
+  <Card title="Common Errors" icon="alert-triangle" href="/help-center/troubleshooting/common-errors">
+    Solutions for 401, 413, 429, checksum mismatches, and CORS errors.
+  </Card>
+  <Card title="Migration Issues" icon="arrow-right-left" href="/help-center/troubleshooting/migration-issues">
+    Fix problems when moving between storage providers.
+  </Card>
+  <Card title="Custom Domain Setup" icon="globe" href="/help-center/guides/custom-domain">
+    Connect your own domain with DNS verification and auto-SSL.
+  </Card>
+  <Card title="Backup & Recovery" icon="shield" href="/help-center/guides/backup-recovery">
+    Create backups, restore from backups, and set up automated schedules.
   </Card>
 </Columns>
+

@@ -1,0 +1,117 @@
+---
+title: Migration Issues
+description: Troubleshooting guide for Content Pod migration and provider switching.
+---
+
+## Common Migration Issues
+
+<ExpandableGroup>
+  <Expandable title="Checksum mismatch after migration" default-open="false">
+    **Cause:** A transient upload error caused a file to be partially written or corrupted during transfer.
+
+    **Solution:**
+    - Re-run the migration — the service will detect and re-upload files with mismatched checksums
+    - If the issue persists, export from the source and import to the target manually
+    - Always create a backup before migrating: `BackupService.createBackup({ type: 'full' })`
+  </Expandable>
+
+  <Expandable title="Custom domain not working after migration" default-open="false">
+    **Cause:** DNS records still point to the old provider.
+
+    **Solution:**
+    1. Update DNS records to point to the new provider
+    2. If using managed hosting, re-verify the domain: `POST /api/v1/pods/:id/custom-domain/verify`
+    3. Wait for DNS propagation (up to 48 hours, typically 1–4 hours)
+    4. For self-hosted: update the CNAME or A record to the new server IP
+  </Expandable>
+
+  <Expandable title="Discovery Node teasers still point to old URL" default-open="false">
+    **Cause:** The migration was run without `updateDiscoveryNodes: true`.
+
+    **Solution:**
+    ```typescript
+    const migration = new MigrationService(sourceProvider, targetProvider);
+    
+    // Re-run with Discovery Node updates enabled
+    await migration.migrate({
+      podId: 'pod_xyz789',
+      sourceBaseUrl: 'https://old-host.example.com',
+      targetBaseUrl: 'https://new-host.example.com',
+      updateDiscoveryNodes: true,
+    });
+    ```
+
+    Alternatively, use the `DiscoveryIntegrationService` to update teasers individually.
+  </Expandable>
+
+  <Expandable title="Missing media files after migration" default-open="false">
+    **Cause:** Media files were not included in the export or failed to upload.
+
+    **Solution:**
+    - Check the migration result for errors: `result.errors` contains per-file failure details
+    - Verify that the source provider still has the files: `sourceProvider.list('content/')`
+    - For large media files, SFTP migrations may time out — increase the timeout or use S3-to-S3 migration instead
+  </Expandable>
+
+  <Expandable title="CORS errors on new host" default-open="false">
+    **Cause:** The new storage provider does not have CORS headers configured.
+
+    **Solution:**
+    - **S3 buckets:** Add a CORS policy allowing `GET` and `HEAD` from `*`
+    - **SFTP/VPS:** Configure your web server:
+
+    ```
+    # Caddy
+    header Access-Control-Allow-Origin *
+    header Access-Control-Allow-Methods "GET, HEAD, OPTIONS"
+
+    # Nginx
+    add_header 'Access-Control-Allow-Origin' '*';
+    add_header 'Access-Control-Allow-Methods' 'GET, HEAD, OPTIONS';
+    ```
+
+    - **Managed hosting:** CORS is configured automatically
+  </Expandable>
+
+  <Expandable title="Migration stuck in 'creating' phase" default-open="false">
+    **Cause:** The target provider is unresponsive or credentials are invalid.
+
+    **Solution:**
+    - Test connectivity to the target: `StorageFactory.create(config).exists('test')`
+    - Verify credentials and endpoint URL for the target provider
+    - Check for network issues between your machine and the provider
+    - Cancel the migration and retry after fixing the configuration
+  </Expandable>
+</ExpandableGroup>
+
+## Migration Best Practices
+
+<Callout kind="tip">
+  1. **Always backup first** — create a full backup before any migration
+  2. **Test with a small pod** — migrate a pod with few items first to verify the configuration
+  3. **Use zero-downtime migration** — keep the source live until the target is verified
+  4. **Verify checksums** — the migration service does this automatically, but double-check the report
+  5. **Update Discovery Nodes** — always set `updateDiscoveryNodes: true` unless you plan to keep the old URLs
+</Callout>
+
+## Provider-Specific Notes
+
+<Tabs>
+  <Tab title="Hetzner → Contabo" icon="arrow-right">
+    Both use S3-compatible storage. The migration is a direct bucket-to-bucket copy.
+
+    - Hetzner endpoint: `https://{region}.your-objectstorage.com`
+    - Contabo endpoint: per-region S3 URL from dashboard
+    - Contabo uses OAuth 2.0 for API auth, but S3 credentials for storage access
+  </Tab>
+  <Tab title="SFTP → S3" icon="arrow-right">
+    - SFTP migrations are slower due to sequential file transfer
+    - For large pods (>10 GB), consider exporting to a local ZIP first, then uploading to S3
+    - Ensure the SFTP server has sufficient bandwidth
+  </Tab>
+  <Tab title="Self-Hosted → Managed" icon="arrow-right">
+    - Managed hosting handles CDN, SSL, and caching automatically
+    - Check storage quota — ensure the managed tier has enough space
+    - Custom domains need to be re-verified on the new pod
+  </Tab>
+</Tabs>

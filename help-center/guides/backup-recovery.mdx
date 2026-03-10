@@ -1,0 +1,123 @@
+---
+title: Backup & Recovery
+description: Create backups, schedule automated backups, and restore your Content Pod from a backup.
+---
+
+Content Pods include full backup and recovery capabilities via the `@roadbeat/pod-portability` package. Managed pods also include automated backup schedules.
+
+## Creating a Manual Backup
+
+<Tabs>
+  <Tab title="Dashboard" icon="layout-grid">
+    <Steps>
+      <Step title="Navigate to backups">
+        Go to **Pod Settings → Backups** in the Pod Dashboard.
+      </Step>
+      <Step title="Create backup">
+        Click **"Create Backup"** and choose the type:
+
+        - **Full** — all content, media, templates, and manifest
+        - **Incremental** — only changes since the last backup
+      </Step>
+      <Step title="Download (optional)">
+        Once complete, the backup appears in the list with size and timestamp. Click **"Download"** to save a local copy.
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab title="API" icon="code">
+    ```bash
+    # Create a full backup
+    curl -X POST https://pods.roadbeat.net/api/v1/pods/pod_abc123/backup \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{ "type": "full" }'
+
+    # List backups
+    curl https://pods.roadbeat.net/api/v1/pods/pod_abc123/backups \
+      -H "Authorization: Bearer YOUR_TOKEN"
+    ```
+  </Tab>
+  <Tab title="Programmatic" icon="terminal">
+    ```typescript
+    import { BackupService } from '@roadbeat/pod-portability';
+
+    const backup = new BackupService(storageProvider);
+
+    const record = await backup.createBackup({
+      podId: 'pod_xyz789',
+      type: 'full',
+      destinationRegion: 'eu-west',
+    });
+
+    console.log(`Backup created: ${record.id} (${record.sizeBytes} bytes)`);
+    ```
+  </Tab>
+</Tabs>
+
+## Automated Backups
+
+Managed pods include automated backups:
+
+| Schedule | Type | Retention |
+|----------|------|-----------|
+| **Daily** | Incremental | 30 days |
+| **Weekly** | Full | 90 days |
+
+Backups are stored in a **separate region** from the pod for disaster recovery.
+
+<Callout kind="info">
+  Automated backups run at off-peak hours (02:00–04:00 UTC) to minimize impact on content serving performance.
+</Callout>
+
+## Restoring from a Backup
+
+<Tabs>
+  <Tab title="Dashboard" icon="layout-grid">
+    <Steps>
+      <Step title="Select a backup">
+        Go to **Pod Settings → Backups** and select the backup to restore from.
+      </Step>
+      <Step title="Choose restore options">
+        - **Full restore** — replace all content with the backup
+        - **Point-in-time** — select a specific timestamp for granular recovery
+      </Step>
+      <Step title="Confirm and restore">
+        Click **"Restore"**. The current pod content will be replaced with the backup content.
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab title="API" icon="code">
+    ```bash
+    curl -X POST https://pods.roadbeat.net/api/v1/pods/pod_abc123/backups/bkp_def456/restore \
+      -H "Authorization: Bearer YOUR_TOKEN"
+    ```
+  </Tab>
+  <Tab title="Programmatic" icon="terminal">
+    ```typescript
+    import { BackupService } from '@roadbeat/pod-portability';
+
+    const backup = new BackupService(storageProvider);
+
+    const result = await backup.restore({
+      backupId: 'bkp_def456',
+      targetProvider: storageProvider,
+      // Optional: point-in-time recovery
+      // pointInTime: '2026-03-01T12:00:00Z',
+    });
+
+    console.log(`Restored ${result.restoredItems} items`);
+    ```
+  </Tab>
+</Tabs>
+
+<Callout kind="alert">
+  Restoring a backup **replaces** the current pod content. Always create a new backup of the current state before restoring an older one.
+</Callout>
+
+## Best Practices
+
+- **Create a backup before migrations** — always have a recovery point before moving to a new provider
+- **Create a backup before bulk operations** — large imports, deletions, or content type changes
+- **Download local copies** — for critical content, keep a local copy in addition to cloud backups
+- **Test recovery periodically** — restore to a test environment to verify backup integrity
+- **Monitor backup size** — growing backups may indicate unnecessary large media files

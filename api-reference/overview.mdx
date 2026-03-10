@@ -1,0 +1,152 @@
+---
+title: API Overview
+description: REST API reference for the Content Pod Hosting and Cloud Provisioner services.
+---
+
+The Content Pod ecosystem exposes two REST APIs:
+
+- **Pod Hosting API** — managed pod lifecycle, content, custom domains, billing
+- **Cloud Provisioner API** — automated infrastructure provisioning on Hetzner and Contabo
+
+Both APIs use JSON request/response bodies and require JWT Bearer authentication.
+
+## Base URLs
+
+| Service | Production | Development |
+|---------|-----------|-------------|
+| Pod Hosting | `https://pods.roadbeat.net` | `http://localhost:3400` |
+| Cloud Provisioner | `https://provisioner.roadbeat.net` | `http://localhost:3402` |
+
+## Pod Hosting API
+
+All endpoints are prefixed with `/api/v1`.
+
+### Pod Management
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/pods` | Create a new pod |
+| `GET` | `/pods` | List user's pods |
+| `GET` | `/pods/:id` | Get pod details |
+| `PUT` | `/pods/:id` | Update pod settings |
+| `DELETE` | `/pods/:id` | Delete pod and all content |
+
+### Storage & Content
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/pods/:id/storage` | Get storage usage (quota, used, content/media counts) |
+| `GET` | `/pods/:id/content` | List content items in a pod |
+| `DELETE` | `/pods/:id/content/:contentId` | Delete a specific content item |
+
+### Custom Domains
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/pods/:id/custom-domain` | Initiate custom domain setup (returns DNS instructions) |
+| `POST` | `/pods/:id/custom-domain/verify` | Verify domain DNS records |
+| `DELETE` | `/pods/:id/custom-domain` | Remove custom domain |
+
+### Billing
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/billing/subscription` | Current subscription details |
+| `POST` | `/billing/subscribe` | Subscribe or upgrade tier |
+| `POST` | `/billing/cancel` | Cancel subscription |
+| `GET` | `/billing/invoices` | Invoice history |
+
+### Health
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/health` | Health check with DB status |
+| `GET` | `/health/liveness` | Liveness probe (returns 200 if running) |
+
+## Cloud Provisioner API
+
+All endpoints are prefixed with `/api/v1`.
+
+### Provisioning
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/provision/studio-node` | Provision a Studio Node VPS |
+| `POST` | `/provision/content-pod/storage` | Provision S3-compatible object storage |
+| `POST` | `/provision/content-pod/server` | Provision a pod hosting VPS |
+| `DELETE` | `/provision/resources/:id` | Deprovision a resource (permanent) |
+| `GET` | `/provision/resources` | List all provisioned resources |
+| `GET` | `/provision/resources/:id` | Get resource details |
+| `GET` | `/provision/resources/:id/status` | Get provisioning status |
+| `POST` | `/provision/resources/:id/action` | Server actions (start, stop, reboot) |
+
+### Provider Management
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/provision/providers` | List configured cloud providers |
+| `POST` | `/provision/providers/test` | Test provider connectivity |
+| `GET` | `/provision/cost-estimate` | Estimate monthly cost for a configuration |
+| `GET` | `/provision/cloud-init/:template` | Preview a cloud-init template |
+
+## Request Format
+
+All request bodies use JSON:
+
+```bash
+curl -X POST https://pods.roadbeat.net/api/v1/pods \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Blog",
+    "subdomain": "my-blog",
+    "tier": "free"
+  }'
+```
+
+## Error Responses
+
+All errors follow a consistent format:
+
+```json
+{
+  "statusCode": 400,
+  "message": "Subdomain is already taken",
+  "error": "Bad Request"
+}
+```
+
+| Status Code | Meaning |
+|-------------|---------|
+| `400` | Bad Request — invalid input or missing required fields |
+| `401` | Unauthorized — missing or invalid JWT token |
+| `403` | Forbidden — insufficient permissions |
+| `404` | Not Found — resource does not exist or belongs to another user |
+| `409` | Conflict — resource already exists (e.g., duplicate subdomain) |
+| `413` | Payload Too Large — file exceeds size limit or storage quota reached |
+| `429` | Too Many Requests — rate limit exceeded |
+| `500` | Internal Server Error |
+
+## Rate Limiting
+
+Rate limits are applied per-IP using a token bucket algorithm:
+
+| Endpoint Category | Limit | Burst |
+|-------------------|-------|-------|
+| Public API | 100 req/min | +20 |
+| Auth endpoints | 10 req/min | +2 |
+| File upload | 20 req/min | +5 |
+| Dynamic features | 30 req/min | +10 |
+| Admin endpoints | 200 req/min | +50 |
+
+Rate limit headers are included in every response:
+
+```
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 1709395200
+```
+
+<Callout kind="info">
+  When rate-limited, the API returns `429 Too Many Requests`. Wait until the `X-RateLimit-Reset` timestamp before retrying.
+</Callout>

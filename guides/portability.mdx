@@ -1,0 +1,229 @@
+---
+title: Portability & Migration
+description: Export, import, migrate between providers, and back up your Content Pod with zero data loss.
+---
+
+Content Pods are designed to be **fully portable**. The `@roadbeat/pod-portability` package provides services for exporting, importing, migrating between providers, and maintaining backups — all with integrity verification.
+
+## Export
+
+The `PodExportService` creates downloadable archives of your pod content.
+
+### Export Modes
+
+| Mode | Description |
+|------|-------------|
+| **Full** | All content, media, templates, and manifest |
+| **Selective** | Filter by content type, locale, or date range |
+| **Incremental** | Only changes since the last export |
+
+```typescript
+import { PodExportService } from '@roadbeat/pod-portability';
+
+const exporter = new PodExportService(storageProvider);
+
+const result = await exporter.export({
+  podId: 'pod_xyz789',
+  mode: 'full',                  // 'full' | 'selective' | 'incremental'
+  // For selective exports:
+  // contentTypes: ['news'],
+  // locales: ['en'],
+  // dateFrom: '2026-01-01',
+});
+
+// result.archivePath — path to ZIP file
+// result.manifest    — export manifest with checksums
+```
+
+### Export Manifest
+
+Every export includes a manifest describing the export contents:
+
+```json
+{
+  "version": "1.0",
+  "exportedAt": "2026-03-02T14:00:00Z",
+  "mode": "full",
+  "source": {
+    "podId": "pod_xyz789",
+    "podName": "Alice's Travel Blog",
+    "baseUrl": "https://alice.pods.roadbeat.net",
+    "provider": "managed"
+  },
+  "statistics": {
+    "totalItems": 42,
+    "totalFiles": 168,
+    "totalSizeBytes": 156000000,
+    "contentTypes": { "news": 30, "event": 8, "recipe": 4 },
+    "locales": { "en": 35, "de": 7 }
+  }
+}
+```
+
+## Import
+
+The `PodImportService` imports content from an export archive with conflict resolution.
+
+### Conflict Resolution Strategies
+
+| Strategy | Behavior |
+|----------|----------|
+| `skip` | Keep existing content, skip duplicates |
+| `overwrite` | Replace existing content with imported version |
+| `rename` | Import with a new slug (e.g., `my-article-2`) |
+
+```typescript
+import { PodImportService } from '@roadbeat/pod-portability';
+
+const importer = new PodImportService(storageProvider);
+
+const result = await importer.import({
+  archivePath: './pod-export.zip',
+  conflictResolution: 'skip',     // 'skip' | 'overwrite' | 'rename'
+  rewriteUrls: true,               // Update canonical URLs to new base
+  targetBaseUrl: 'https://new-pod.example.com',
+});
+
+// result.imported — number of items imported
+// result.skipped  — number of duplicates skipped
+// result.errors   — any import failures
+```
+
+<Callout kind="info">
+  Deduplication is automatic — items with matching SHA-256 checksums are skipped regardless of the conflict resolution strategy.
+</Callout>
+
+## Migration
+
+The `MigrationService` executes a 6-phase pipeline to move a pod between storage providers with optional zero-downtime.
+
+### Migration Phases
+
+<Steps>
+  <Step title="Export">
+    Read all content from the source provider.
+  </Step>
+  <Step title="Upload">
+    Write all content to the target provider.
+  </Step>
+  <Step title="Manifest">
+    Update `manifest.json` with the new base URL.
+  </Step>
+  <Step title="Discovery">
+    Update Discovery Node teasers with new canonical URLs.
+  </Step>
+  <Step title="Verify">
+    Verify SHA-256 checksums on all migrated files.
+  </Step>
+  <Step title="Redirects">
+    Set up HTTP 301 redirects from old URLs (optional).
+  </Step>
+</Steps>
+
+### Running a Migration
+
+```typescript
+import { MigrationService } from '@roadbeat/pod-portability';
+
+const migration = new MigrationService(sourceProvider, targetProvider);
+
+const result = await migration.migrate({
+  podId: 'pod_xyz789',
+  sourceBaseUrl: 'https://old-host.example.com',
+  targetBaseUrl: 'https://new-host.pods.roadbeat.net',
+  updateDiscoveryNodes: true,
+  setupRedirects: true,
+  onProgress: (progress) => {
+    console.log(`Phase ${progress.phase}: ${progress.message} (${progress.percent}%)`);
+  },
+});
+```
+
+### Zero-Downtime Migration
+
+<Steps>
+  <Step title="Start migration">
+    Content is copied to the target while the source continues serving traffic.
+  </Step>
+  <Step title="Verify checksums">
+    All files are validated on the target provider.
+  </Step>
+  <Step title="Update DNS">
+    Point your domain to the new provider.
+  </Step>
+  <Step title="Update Discovery Nodes">
+    Teasers get new canonical URLs pointing to the target.
+  </Step>
+  <Step title="Enable redirects">
+    Old URLs 301-redirect to new URLs for any cached links.
+  </Step>
+  <Step title="Decommission source">
+    Remove old content after DNS propagation is complete.
+  </Step>
+</Steps>
+
+### Provider-Specific Notes
+
+<Tabs>
+  <Tab title="Managed → S3" icon="arrow-right">
+    - Export all content via the dashboard or API
+    - Configure S3 bucket with public read access
+    - Set up CORS: `Access-Control-Allow-Origin: *` on JSON endpoints
+    - Configure CDN cache rules for JSON/HTML (5 min) and media (1 year, immutable)
+  </Tab>
+  <Tab title="S3 → Managed" icon="arrow-left">
+    - Managed service handles CDN, SSL, and caching automatically
+    - Custom domains need to be re-configured on the new pod
+    - Discovery Node teasers are updated automatically if `updateDiscoveryNodes: true`
+  </Tab>
+  <Tab title="Hetzner ↔ Contabo" icon="arrow-right-left">
+    Both use S3-compatible storage — migration is a direct bucket-to-bucket copy.
+
+    | Setting | Hetzner | Contabo |
+    |---------|---------|---------|
+    | Endpoint | `https://{region}.your-objectstorage.com` | Per-region S3 URL |
+    | Auth | Access key + secret | OAuth 2.0 → S3 credentials |
+    | Regions | fsn1, nbg1, hel1 | EU, US-central, SIN |
+  </Tab>
+</Tabs>
+
+## Backup & Recovery
+
+The `BackupService` provides full and incremental backups with cross-region storage.
+
+### Creating Backups
+
+```typescript
+import { BackupService } from '@roadbeat/pod-portability';
+
+const backup = new BackupService(storageProvider);
+
+const record = await backup.createBackup({
+  podId: 'pod_xyz789',
+  type: 'full',                   // 'full' | 'incremental'
+  destinationRegion: 'eu-west',   // Cross-region for disaster recovery
+});
+```
+
+### Automated Backup Schedule
+
+Managed pods include automated backups:
+
+- **Daily** incremental backups
+- **Weekly** full backups
+- Stored in a separate region for disaster recovery
+- Configurable retention period
+
+### Point-in-Time Recovery
+
+```typescript
+const result = await backup.restore({
+  backupId: record.id,
+  targetProvider: newStorageProvider,
+  pointInTime: '2026-03-01T12:00:00Z',   // Optional
+});
+```
+
+<Callout kind="alert">
+  Always create a backup before migrating or making bulk changes to your pod. Backups include full integrity checksums for verification.
+</Callout>

@@ -1,0 +1,66 @@
+---
+title: General Questions
+description: Frequently asked questions about Content Pods.
+---
+
+<ExpandableGroup>
+  <Expandable title="What is a Content Pod?" default-open="true">
+    A Content Pod is a portable, static content hosting solution for individual publishers. It generates signed content bundles — HTML, JSON metadata, and media assets — that serve as the canonical origin for your published content, discoverable via roadbeat Discovery Nodes.
+
+    Think of it as your own static website with cryptographic content signing and built-in discoverability through the roadbeat network.
+  </Expandable>
+
+  <Expandable title="Who should use Content Pods?" default-open="false">
+    Content Pods are designed for **individual publishers** who don't operate their own Studio Node — bloggers, freelance journalists, photographers, recipe creators, and anyone who wants to publish structured content with full data sovereignty.
+
+    Organizations with teams, workflows, and multi-author publishing should use [roadbeat Studio](https://docs.roadbeat.net/studio) instead.
+  </Expandable>
+
+  <Expandable title="What content types are supported?" default-open="false">
+    Content Pods support all content types defined in the roadbeat Schema Registry — news articles, events, recipes, job listings, travel guides, product listings, and dozens more. Each content type has its own JSON Schema, form structure, and rendering template.
+
+    The `BundleGenerator` includes built-in Handlebars templates for `news`, `event`, `recipe`, `job`, and `profile`. Unknown content types fall back to a generic `base.hbs` template.
+  </Expandable>
+
+  <Expandable title="Is my content really portable?" default-open="false">
+    Yes. Content Pods are designed with portability as a core principle:
+
+    - **Export** your entire pod as a ZIP archive at any time
+    - **Migrate** between providers (S3, Hetzner, Contabo, SFTP, managed hosting) with zero data loss
+    - **All files are standard formats** — JSON, HTML, JPEG, PNG — no proprietary formats
+    - **No lock-in** — you own every file and can host it anywhere that serves static files
+
+    See the [Portability & Migration](/guides/portability) guide for details.
+  </Expandable>
+
+  <Expandable title="How does content signing work?" default-open="false">
+    Every content item is cryptographically signed using Ed25519:
+
+    1. Content is serialized using JSON Canonicalization Scheme (JCS)
+    2. A SHA-256 hash is computed
+    3. The hash is signed with your Ed25519 private key
+    4. The signature is embedded in the `_signature` field
+
+    Anyone can verify your content's authenticity by checking the signature against your public key at `/public_key.pem`.
+
+    See [Content Signing](/architecture/content-signing) for the full technical details.
+  </Expandable>
+
+  <Expandable title="What is the difference between a Content Pod and a Studio Node?" default-open="false">
+    | Feature | Content Pod | Studio Node |
+    |---------|------------|-------------|
+    | **Target user** | Individual publishers | Organizations and teams |
+    | **Content format** | Static files (HTML + JSON) | Dynamic CMS with database |
+    | **Hosting** | Any static hosting provider | Self-hosted NestJS application |
+    | **Workflows** | None (publish directly) | Review, approval, scheduling |
+    | **Multi-author** | No | Yes |
+    | **Dynamic features** | Optional add-on | Built-in |
+    | **Cost** | Free tier available | Self-hosted (free) or managed |
+
+    Both can publish teasers to Discovery Nodes and participate in the roadbeat ecosystem.
+  </Expandable>
+
+  <Expandable title="Is Content Pod open source?" default-open="false">
+    Yes. The Content Pod codebase is licensed under **AGPL-3.0** — you can self-host, modify, and contribute to the project.
+  </Expandable>
+</ExpandableGroup>

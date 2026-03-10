@@ -1,0 +1,75 @@
+---
+title: Storage & Hosting
+description: Frequently asked questions about storage providers, hosting options, and tiers.
+---
+
+<ExpandableGroup>
+  <Expandable title="Which storage providers are supported?" default-open="true">
+    The `@roadbeat/content-pod-storage` package supports:
+
+    - **AWS S3** — and any S3-compatible storage (MinIO, Backblaze B2, DigitalOcean Spaces)
+    - **Hetzner Object Storage** — EU regions: fsn1, nbg1, hel1
+    - **Contabo Object Storage** — regions: EU, US-central, SIN
+    - **SFTP** — any server with SSH access
+    - **Local filesystem** — for development and testing
+    - **Managed hosting** — `*.pods.roadbeat.net` with automatic CDN and SSL
+
+    You can also implement your own provider using the `StorageProvider` interface. See [Storage Providers](/guides/storage-providers).
+  </Expandable>
+
+  <Expandable title="How much does managed hosting cost?" default-open="false">
+    | Tier | Storage | Custom Domains | Dynamic Features | Price |
+    |------|---------|----------------|------------------|-------|
+    | **Free** | 5 GB | — | — | €0/mo |
+    | **Starter** | 25 GB | 1 | Comments, Stats | €5/mo |
+    | **Pro** | 100 GB | 3 | Full | €15/mo |
+    | **Enterprise** | Unlimited | Unlimited | Full + SLA | Custom |
+
+    Start with the Free tier — you can upgrade at any time without losing content.
+  </Expandable>
+
+  <Expandable title="Can I use my own domain?" default-open="false">
+    Yes, on Starter tier and above. The process is:
+
+    1. Add a `TXT` record for domain verification
+    2. Add a `CNAME` record pointing to `pods-cdn.roadbeat.net`
+    3. Verify via the API or dashboard
+    4. SSL is provisioned automatically via Let's Encrypt
+
+    See [Managed Hosting — Custom Domains](/guides/managed-hosting#custom-domains).
+  </Expandable>
+
+  <Expandable title="What happens when I exceed my storage quota?" default-open="false">
+    Uploads are rejected with HTTP `413 Payload Too Large`. Your existing content remains accessible — only new uploads are blocked.
+
+    To resolve this:
+    - **Upgrade** your tier for more storage
+    - **Delete** unused content or old media files
+    - **Migrate** to self-hosted S3 for unlimited storage
+  </Expandable>
+
+  <Expandable title="Can I switch from managed hosting to self-hosted (or vice versa)?" default-open="false">
+    Yes. The [Migration Service](/guides/portability#migration) supports moving between any storage providers with zero data loss and optional zero-downtime. The 6-phase pipeline handles exporting, uploading, updating manifest URLs, and optionally updating Discovery Node teasers.
+  </Expandable>
+
+  <Expandable title="Is there a CDN included?" default-open="false">
+    Managed pods include automatic CDN distribution:
+
+    - **BunnyCDN** as the primary CDN (European PoPs)
+    - **Cloudflare** as fallback
+    - Immutable caching for media (1-year TTL)
+    - Short-lived caching for JSON and HTML (5-minute TTL)
+
+    For self-hosted pods, you can configure your own CDN (CloudFront, Cloudflare, BunnyCDN, etc.) by pointing it at your storage origin.
+  </Expandable>
+
+  <Expandable title="How are backups handled?" default-open="false">
+    Managed pods include automated backups:
+
+    - **Daily** incremental backups
+    - **Weekly** full backups
+    - Stored in a separate region for disaster recovery
+
+    You can also create manual backups via the dashboard or API at any time. See [Backup & Recovery](/help-center/guides/backup-recovery).
+  </Expandable>
+</ExpandableGroup>

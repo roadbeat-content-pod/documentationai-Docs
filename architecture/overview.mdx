@@ -1,0 +1,146 @@
+---
+title: System Overview
+description: Architecture of the Content Pod monorepo — packages, applications, and how they connect.
+---
+
+The Content Pod ecosystem is organized as a **pnpm monorepo** with 6 library packages and 3 deployable applications. All packages are written in TypeScript and thoroughly tested (522 tests total).
+
+## Monorepo Structure
+
+```
+content-pod/
+├── packages/
+│   ├── content-pod-generator/    # Bundle generation, signing, templates (84 tests)
+│   ├── content-pod-storage/      # Storage adapters: S3, Hetzner, Contabo, SFTP (26 tests)
+│   ├── dynamic-features/         # Comments, reactions, stats, newsletter, RSS (101 tests)
+│   ├── studio-integration/       # Studio export bridge, Discovery Node publishing (50 tests)
+│   ├── pod-portability/          # Export, import, migration, backup & recovery (44 tests)
+│   └── production-readiness/     # Security, caching, monitoring, alerts (110 tests)
+├── apps/
+│   ├── pod-hosting/              # Managed hosting service — NestJS (67 tests)
+│   ├── cloud-provisioner/        # Infrastructure provisioning — NestJS (40 tests)
+│   └── pod-dashboard/            # Management dashboard — Angular 19
+├── Dockerfile                    # Multi-stage: pod-hosting + cloud-provisioner
+├── docker-compose.yml            # Full stack: 5 services
+└── .github/workflows/ci.yml     # CI: Node 20+22, lint, test, build
+```
+
+## Packages
+
+### `@roadbeat/content-pod-generator`
+
+Core library for generating static Content Pod bundles from structured content data.
+
+| Service | Responsibility |
+|---------|---------------|
+| `SigningService` | Ed25519 key pair generation, content signing, signature verification (JCS canonical JSON) |
+| `ChecksumService` | SHA-256 checksums for files, bundles, and manifests with verification |
+| `TemplateEngine` | Handlebars rendering with helpers (`formatDate`, `truncate`, `assetUrl`, `localizedField`, etc.) |
+| `BundleGenerator` | Generates complete bundles (index.json, index.html, embed.html, assets/) with SEO metadata |
+| `ManifestGenerator` | Creates and maintains pod `manifest.json` with statistics, content index, and signatures |
+| `PodPublisher` | Orchestrates the full publish pipeline with atomic publishing and error recovery |
+| `KeyManager` | Key rotation, multiple valid keys, key ID tracking |
+| `ContentVerificationService` | Full integrity verification of pod content against checksums and signatures |
+
+### `@roadbeat/content-pod-storage`
+
+Pluggable storage providers with a common `StorageProvider` interface.
+
+| Provider | Description |
+|----------|-------------|
+| `S3StorageProvider` | AWS S3 with batch upload, cache-control headers, multipart, retry |
+| `HetznerStorageProvider` | Pre-configured for Hetzner Object Storage (fsn1, nbg1, hel1) |
+| `ContaboStorageProvider` | Pre-configured for Contabo (EU, US-central, SIN) |
+| `SftpStorageProvider` | SSH key + password auth, connection pooling |
+| `LocalStorageProvider` | Filesystem storage for development and testing |
+| `ManagedPodStorageProvider` | Uploads via Pod Hosting API with quota enforcement |
+| `StorageFactory` | Create any provider from a config object |
+
+### `@roadbeat/dynamic-features`
+
+Optional server-side features for interactive Content Pods.
+
+| Service | Description |
+|---------|-------------|
+| `CommentsService` | Threaded comments, moderation queue, Akismet spam detection, CSRF |
+| `ReactionsService` | Configurable types (like, love, insightful, bookmark), session dedup |
+| `StatisticsService` | GDPR-compliant views (IP anonymization), referrers, reading time, country |
+| `NewsletterService` | Double opt-in subscriptions, confirmation flow, unsubscribe |
+| `RssService` | RSS 2.0 + Atom, filterable by type/tag/language |
+| `MigrationRunner` | Database schema migrations for dynamic features |
+| `DynamicFeaturesGenerator` | Generates dynamic feature configuration and endpoints |
+
+### `@roadbeat/studio-integration`
+
+Bridges Content Pods with Studio Node and Discovery Nodes.
+
+| Service | Description |
+|---------|-------------|
+| `ContentPodExportService` | Full bundle generation from Studio content (signed, schema-validated) |
+| `DiscoveryIntegrationService` | Publish/update/remove teasers on Discovery Nodes with pod canonical URLs |
+| `LayoutExportService` | Region-based layout rendering with content-type template fallback |
+
+### `@roadbeat/pod-portability`
+
+Complete data portability: export, import, migrate, backup.
+
+| Service | Description |
+|---------|-------------|
+| `PodExportService` | Full, selective, and incremental exports with checksums and manifests |
+| `PodImportService` | Import with conflict resolution (overwrite, skip, rename), deduplication, URL rewriting |
+| `MigrationService` | 6-phase pipeline (export → upload → manifest → discovery → verify → redirects) |
+| `BackupService` | Full/incremental backups, cross-region storage, point-in-time recovery, retention |
+
+### `@roadbeat/production-readiness`
+
+Security hardening, performance, and monitoring utilities.
+
+| Category | Exports |
+|----------|---------|
+| **Security** | `RateLimiter`, `InputSanitizer`, `CorsHandler`, `SecurityHeaders` |
+| **Performance** | `CacheManager` (in-memory LRU + TTL) |
+| **Monitoring** | `HealthChecker`, `StructuredLogger`, `AlertManager` |
+
+## Applications
+
+### Pod Hosting (`apps/pod-hosting`)
+
+Managed hosting service for `*.pods.roadbeat.net`. Built with NestJS, port **3400**.
+
+- Pod CRUD with subdomain validation and tier enforcement (Free/Starter/Pro/Enterprise)
+- Content upload with storage quota enforcement
+- CDN integration (BunnyCDN + Cloudflare fallback)
+- Custom domain setup with DNS verification and auto-SSL
+- Billing via Stripe (subscriptions, usage-based overage, invoices)
+- Global JWT authentication guard
+- Rate limiting and security headers middleware
+
+### Cloud Provisioner (`apps/cloud-provisioner`)
+
+Automated infrastructure provisioning. Built with NestJS, port **3402**.
+
+- **Hetzner Cloud** — servers, SSH keys, firewalls, volumes, networks, snapshots
+- **Contabo** — OAuth 2.0, servers, secrets, object storage, DNS, private networks
+- Cloud-init templates for Studio Node, static pod, dynamic pod
+- DNS management (Cloudflare + Contabo)
+- Provisioning orchestrator with state machine (`pending → creating → configuring → ready → error`) and rollback
+- Multi-provider failover and cost estimation
+
+### Pod Dashboard (`apps/pod-dashboard`)
+
+Management dashboard built with Angular 19, port **3401**.
+
+- Pod list, detail, creation wizard, content browser, storage usage
+- Cloud infrastructure: provider settings, resource dashboard, provision wizard, server details, cost overview
+- Analytics: traffic overview, content performance, geographic distribution, referrer analysis
+- Dynamic features: comment moderation, subscriber management, feature toggles
+
+## Port Map
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Pod Hosting API | 3400 | Managed hosting REST API |
+| Pod Dashboard | 3401 | Angular management UI |
+| Cloud Provisioner API | 3402 | Infrastructure provisioning REST API |
+| PostgreSQL | 5432 | Database (via Docker) |
+| Redis | 6379 | Caching (via Docker) |

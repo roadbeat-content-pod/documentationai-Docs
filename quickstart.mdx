@@ -1,58 +1,142 @@
 ---
-title: Quickstart
-description: Minimal steps to customize this sample starter kit.
+title: Content Pod quickstart guide
+description: Create your first Content Pod and publish content in under 10 minutes.
 ---
-## Overview
 
-<Callout kind="alert" collapsed="false">
-  This site ships with placeholder content. Use this quickstart to replace it with your real product docs.
-</Callout>
+This guide walks you through creating a Content Pod, generating a signed content bundle, and uploading it to storage.
 
-## 1. Update a page
+## Prerequisites
+
+- **Node.js** 20 or later
+- **pnpm** 9 or later
+
+## Create a Pod
+
+<Tabs>
+  <Tab title="Managed Hosting" icon="cloud">
+    Use the Pod Hosting API to create a managed pod on `*.pods.roadbeat.net`:
+
+    ```bash
+    curl -X POST https://pods.roadbeat.net/api/v1/pods \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "My Travel Blog",
+        "subdomain": "travel-blog",
+        "tier": "free"
+      }'
+    ```
+
+    Your pod is immediately available at `https://travel-blog.pods.roadbeat.net`.
+  </Tab>
+  <Tab title="Self-Hosted" icon="terminal">
+    Run the full stack locally with Docker Compose:
+
+    ```bash
+    git clone https://github.com/roadbeat/content-pod.git
+    cd content-pod
+    docker compose up -d
+    ```
+
+    The Pod Hosting API is available at `http://localhost:3400`, the dashboard at `http://localhost:3401`.
+  </Tab>
+</Tabs>
+
+## Generate a Content Bundle
 
 <Steps>
-  <Step title="Edit introduction" icon="edit" title-type="p">
-    Replace the sample introduction with a concise overview of your product and the key actions you want new users to take first.
+  <Step title="Install the generator package">
+    ```bash
+    pnpm add @roadbeat/content-pod-generator
+    ```
   </Step>
 
-  <Step title="Preview your change" icon="monitor" title-type="p">
-    Use your dashboard board editor to confirm the updated introduction looks and reads as expected.
+  <Step title="Generate an Ed25519 key pair">
+    The signing key is used to cryptographically sign every content item for authenticity verification.
+
+    ```typescript
+    import { SigningService } from '@roadbeat/content-pod-generator';
+
+    const signing = new SigningService();
+    const keyPair = await signing.generateKeyPair();
+
+    // Save keyPair.privateKey securely — never publish it
+    // Serve keyPair.publicKey at /public_key.pem on your pod
+    ```
+  </Step>
+
+  <Step title="Create a content bundle">
+    ```typescript
+    import { BundleGenerator, TemplateEngine } from '@roadbeat/content-pod-generator';
+
+    const templates = new TemplateEngine();
+    const generator = new BundleGenerator(templates);
+
+    const bundle = await generator.generate({
+      id: 'article-001',
+      contentType: 'news',
+      slug: 'hidden-beaches-portugal',
+      locale: 'en',
+      data: {
+        title: '5 Hidden Beaches in Portugal',
+        body: '<p>Portugal is famous for its stunning beaches...</p>',
+        published_at: '2026-03-01T12:00:00Z',
+      },
+      media: [],
+      author: { name: 'Jane Doe' },
+    });
+
+    // bundle.files contains: index.json, index.html, embed.html
+    ```
+  </Step>
+
+  <Step title="Upload to storage">
+    ```typescript
+    import { StorageFactory } from '@roadbeat/content-pod-storage';
+
+    const storage = StorageFactory.create({
+      type: 'local',
+      basePath: './my-pod',
+    });
+
+    for (const file of bundle.files) {
+      await storage.upload(file.path, file.content);
+    }
+    ```
   </Step>
 </Steps>
 
-## 2. Add a new page
+## Verify Your Pod
 
-<Steps>
-  <Step title="Add a page" icon="file-text" title-type="p">
-    Create a new `page` by clicking on the + button from the left navigation bar of dashboard. If you are using git, create the .mdx file and add to navigation bar using documentation.json
-  </Step>
-</Steps>
+After uploading, your pod directory should look like this:
 
-## Example onboarding flow (replace with yours)
+```
+my-pod/
+├── manifest.json
+├── public_key.pem
+└── content/
+    └── news/
+        └── hidden-beaches-portugal/
+            ├── index.json      # Full structured metadata (signed)
+            ├── index.html      # Rendered HTML page with SEO tags
+            └── embed.html      # Embeddable card for sharing
+```
 
-1. Sign up for an account and verify your email.
+Open `content/news/hidden-beaches-portugal/index.html` in a browser to see the rendered article.
 
-2. Create your first workspace, project, or environment.
+## Next Steps
 
-3. Add one integration or data source to connect your existing tools.
-
-4. Complete a guided action (for example, run your first job or publish your first resource).
-
-5. Invite a teammate and assign a basic role or permission.
-
-## 3. Connect API Reference (optional)
-
-If you have an API, replace `openapi.yaml` with your real OpenAPI file. If you do not need an API reference, remove that tab either from dashboard or  `documentation.json`.
-
-## Next steps
-
-<Columns cols="2">
-  <Card title="Core Concepts" href="/concepts" icon="layers" horizontal="false">
-    Keep the mental model simple and easy to scan.
+<Columns cols={2}>
+  <Card title="Core Concepts" icon="layers" href="/concepts">
+    Understand the full publishing pipeline, signing process, and storage architecture.
   </Card>
-
-  <Card title="Authentication" href="/authentication" icon="lock" horizontal="false">
-    Add your real auth flows and security notes.
+  <Card title="Storage Providers" icon="hard-drive" href="/guides/storage-providers">
+    Deploy to S3, Hetzner, Contabo, SFTP, or managed hosting.
+  </Card>
+  <Card title="Dynamic Features" icon="sparkles" href="/guides/dynamic-features">
+    Add comments, reactions, analytics, and RSS feeds to your pod.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/overview">
+    Manage pods, billing, and custom domains via the REST API.
   </Card>
 </Columns>
-

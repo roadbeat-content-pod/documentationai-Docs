@@ -1,0 +1,194 @@
+---
+title: Storage Providers
+description: Configure and use S3, Hetzner, Contabo, SFTP, local, or managed storage for your Content Pod.
+---
+
+The `@roadbeat/content-pod-storage` package provides a unified `StorageProvider` interface with adapters for multiple backends. All providers share the same API, making it trivial to switch between them.
+
+## StorageProvider Interface
+
+Every storage adapter implements this interface:
+
+```typescript
+interface StorageProvider {
+  upload(path: string, content: Buffer | string, options?: UploadOptions): Promise<string>;
+  uploadBundle(files: StorageFile[]): Promise<Map<string, string>>;
+  download(path: string): Promise<Buffer>;
+  delete(path: string): Promise<void>;
+  deleteFolder(prefix: string): Promise<void>;
+  exists(path: string): Promise<boolean>;
+  list(prefix: string): Promise<string[]>;
+  getPublicUrl(path: string): string;
+}
+```
+
+## Using the StorageFactory
+
+The easiest way to create a storage provider is via `StorageFactory`:
+
+```typescript
+import { StorageFactory } from '@roadbeat/content-pod-storage';
+
+const storage = StorageFactory.create({
+  type: 's3',          // 's3' | 'hetzner' | 'contabo' | 'sftp' | 'local' | 'managed'
+  bucket: 'my-pod',
+  region: 'eu-central-1',
+  accessKeyId: process.env.S3_ACCESS_KEY,
+  secretAccessKey: process.env.S3_SECRET_KEY,
+});
+```
+
+## Provider Configuration
+
+<Tabs>
+  <Tab title="S3" icon="cloud">
+    Works with any S3-compatible storage: AWS S3, MinIO, Backblaze B2, DigitalOcean Spaces.
+
+    ```typescript
+    const storage = StorageFactory.create({
+      type: 's3',
+      endpoint: 'https://s3.eu-central-1.amazonaws.com',
+      region: 'eu-central-1',
+      bucket: 'my-content-pod',
+      accessKeyId: process.env.S3_ACCESS_KEY,
+      secretAccessKey: process.env.S3_SECRET_KEY,
+      publicUrl: 'https://my-content-pod.s3.eu-central-1.amazonaws.com',
+    });
+    ```
+
+    **Features:** batch upload, configurable cache-control headers, multipart upload for large files, automatic retry.
+  </Tab>
+
+  <Tab title="Hetzner" icon="hard-drive">
+    Pre-configured for Hetzner Object Storage with EU regions.
+
+    ```typescript
+    const storage = StorageFactory.create({
+      type: 'hetzner',
+      region: 'fsn1',          // fsn1 | nbg1 | hel1
+      bucket: 'my-content-pod',
+      accessKeyId: process.env.HETZNER_ACCESS_KEY,
+      secretAccessKey: process.env.HETZNER_SECRET_KEY,
+    });
+    ```
+
+    **Regions:** `fsn1` (Falkenstein), `nbg1` (Nuremberg), `hel1` (Helsinki).
+  </Tab>
+
+  <Tab title="Contabo" icon="hard-drive">
+    Pre-configured for Contabo Object Storage.
+
+    ```typescript
+    const storage = StorageFactory.create({
+      type: 'contabo',
+      region: 'EU',            // EU | US-central | SIN
+      bucket: 'my-content-pod',
+      accessKeyId: process.env.CONTABO_ACCESS_KEY,
+      secretAccessKey: process.env.CONTABO_SECRET_KEY,
+    });
+    ```
+
+    **Regions:** `EU` (European Union), `US-central`, `SIN` (Singapore).
+  </Tab>
+
+  <Tab title="SFTP" icon="terminal">
+    Upload via SSH to any server. Supports key-based and password authentication.
+
+    ```typescript
+    const storage = StorageFactory.create({
+      type: 'sftp',
+      host: 'myserver.example.com',
+      port: 22,
+      username: 'content',
+      privateKeyPath: '/secrets/sftp_key',    // or use password
+      remotePath: '/var/www/content-pod',
+      publicUrl: 'https://content.example.com',
+    });
+    ```
+
+    **Features:** SSH key + password auth, connection pooling, automatic directory creation.
+  </Tab>
+
+  <Tab title="Local" icon="folder">
+    Filesystem storage for development and testing.
+
+    ```typescript
+    const storage = StorageFactory.create({
+      type: 'local',
+      basePath: './output/my-pod',
+    });
+    ```
+  </Tab>
+
+  <Tab title="Managed" icon="server">
+    Upload directly to the Pod Hosting API with quota enforcement.
+
+    ```typescript
+    const storage = StorageFactory.create({
+      type: 'managed',
+      apiUrl: 'https://pods.roadbeat.net/api/v1',
+      podId: 'pod_xyz789',
+      authToken: process.env.POD_AUTH_TOKEN,
+    });
+    ```
+  </Tab>
+</Tabs>
+
+## Cache-Control Headers
+
+The storage package automatically sets appropriate cache-control headers based on file type:
+
+| File Pattern | Cache-Control | Rationale |
+|-------------|---------------|-----------|
+| `*.json`, `*.html` | `max-age=300, stale-while-revalidate=60` | Content may update frequently |
+| `media/*`, `assets/*` | `max-age=31536000, immutable` | Media files are content-addressed |
+| `*.jpg`, `*.png`, `*.webp` | `max-age=2592000` | Images cached for 30 days |
+
+You can override defaults via the `UploadOptions` parameter:
+
+```typescript
+await storage.upload('content/news/article/index.json', jsonContent, {
+  contentType: 'application/json',
+  cacheControl: 'max-age=60, stale-while-revalidate=30',
+});
+```
+
+## Implementing a Custom Provider
+
+To add support for a new storage backend, implement the `StorageProvider` interface:
+
+```typescript
+import type { StorageProvider, UploadOptions, StorageFile } from '@roadbeat/content-pod-storage';
+
+export class MyCloudProvider implements StorageProvider {
+  constructor(private config: { apiKey: string; bucket: string; baseUrl: string }) {}
+
+  async upload(path: string, content: Buffer | string, options?: UploadOptions): Promise<string> {
+    // Upload to your cloud storage
+    return path;
+  }
+
+  async uploadBundle(files: StorageFile[]): Promise<Map<string, string>> {
+    const results = new Map<string, string>();
+    for (const file of files) {
+      const uploaded = await this.upload(file.path, file.content, file.options);
+      results.set(file.path, uploaded);
+    }
+    return results;
+  }
+
+  async download(path: string): Promise<Buffer> { /* ... */ }
+  async delete(path: string): Promise<void> { /* ... */ }
+  async deleteFolder(prefix: string): Promise<void> { /* ... */ }
+  async exists(path: string): Promise<boolean> { /* ... */ }
+  async list(prefix: string): Promise<string[]> { /* ... */ }
+
+  getPublicUrl(path: string): string {
+    return `${this.config.baseUrl}/${path}`;
+  }
+}
+```
+
+<Callout kind="tip">
+  The `uploadBundle` method enables optimized batch uploads. Override it for providers that support parallel or multipart uploads.
+</Callout>

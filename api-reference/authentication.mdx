@@ -1,0 +1,154 @@
+---
+title: Authentication
+description: JWT Bearer authentication for the Content Pod APIs.
+---
+
+All Content Pod API endpoints require authentication via **JWT Bearer tokens** unless explicitly marked as public. Both the Pod Hosting API and Cloud Provisioner API use the same authentication scheme.
+
+## Authentication Header
+
+Include a valid JWT token in the `Authorization` header of every request:
+
+```bash
+curl https://pods.roadbeat.net/api/v1/pods \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+<ParamField header="Authorization" param-type="string" required="true">
+  `Bearer YOUR_JWT_TOKEN` — a valid, non-expired JWT token.
+</ParamField>
+
+## Token Format
+
+JWT tokens are signed with HS256 and contain the following claims:
+
+```json
+{
+  "sub": "user_abc123",
+  "userId": "user_abc123",
+  "email": "alice@example.com",
+  "iat": 1709395200,
+  "exp": 1709481600
+}
+```
+
+<ResponseField name="sub" field-type="string" required="true">
+  Subject — the user's unique identifier.
+</ResponseField>
+
+<ResponseField name="userId" field-type="string" required="true">
+  User ID used for authorization checks (pod ownership, etc.).
+</ResponseField>
+
+<ResponseField name="email" field-type="string">
+  User's email address.
+</ResponseField>
+
+<ResponseField name="iat" field-type="integer" required="true">
+  Issued-at timestamp (Unix epoch seconds).
+</ResponseField>
+
+<ResponseField name="exp" field-type="integer" required="true">
+  Expiration timestamp (Unix epoch seconds). Default token lifetime is 24 hours.
+</ResponseField>
+
+## Token Lifecycle
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant A as Auth Service
+    participant P as Pod Hosting API
+
+    C->>A: POST /auth/login (email + password)
+    A-->>C: JWT token (24h expiry)
+    C->>P: GET /api/v1/pods (Bearer token)
+    P-->>C: 200 OK — pod list
+    Note over C,P: Token expires after 24 hours
+    C->>P: GET /api/v1/pods (expired token)
+    P-->>C: 401 Unauthorized
+    C->>A: POST /auth/refresh
+    A-->>C: New JWT token
+```
+
+## Public Endpoints
+
+The following endpoints do **not** require authentication:
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /health` | Health check |
+| `GET /health/liveness` | Liveness probe |
+
+All other endpoints return `401 Unauthorized` if the token is missing, malformed, or expired.
+
+## Error Responses
+
+### Missing Token
+
+```json
+{
+  "statusCode": 401,
+  "message": "Unauthorized"
+}
+```
+
+### Expired Token
+
+```json
+{
+  "statusCode": 401,
+  "message": "Token has expired"
+}
+```
+
+### Invalid Token
+
+```json
+{
+  "statusCode": 401,
+  "message": "Invalid token"
+}
+```
+
+## Common Mistakes
+
+<Expandable title="Why am I getting a 401?" default-open="false">
+  Verify that:
+
+  - The token is valid and not expired (check the `exp` claim)
+  - The `Authorization` header includes the `Bearer` prefix and a space before the token
+  - The token was issued for the correct API (Pod Hosting vs. Cloud Provisioner use the same JWT secret in a shared deployment)
+  - The JWT secret on the server matches the one used to sign the token
+</Expandable>
+
+<Expandable title="How do I get a token for development?" default-open="false">
+  In development, you can generate a token using the JWT secret from the environment:
+
+  ```typescript
+  import * as jwt from 'jsonwebtoken';
+
+  const token = jwt.sign(
+    { sub: 'dev-user', userId: 'dev-user', email: 'dev@example.com' },
+    process.env.JWT_SECRET || 'dev-secret-change-in-production',
+    { expiresIn: '24h' },
+  );
+
+  console.log(token);
+  ```
+
+  Or use the `jwt.io` debugger with the secret from your `.env` file.
+</Expandable>
+
+<Expandable title="Can I use API keys instead of JWT?" default-open="false">
+  Currently, only JWT Bearer tokens are supported. API key authentication may be added in a future release for machine-to-machine integrations.
+</Expandable>
+
+## Security Best Practices
+
+<Callout kind="tip">
+  - Store tokens securely — never in local storage for web apps; prefer httpOnly cookies
+  - Rotate the `JWT_SECRET` periodically in production
+  - Use short-lived tokens (default 24h) and refresh as needed
+  - Always use HTTPS in production to prevent token interception
+</Callout>

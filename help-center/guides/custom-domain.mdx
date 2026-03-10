@@ -1,0 +1,99 @@
+---
+title: Custom Domain Setup
+description: Step-by-step guide to connecting your own domain to a managed Content Pod.
+---
+
+Custom domains are available on **Starter** tier and above. This guide walks you through the full setup process.
+
+## Prerequisites
+
+- A managed Content Pod on Starter, Pro, or Enterprise tier
+- Access to your domain's DNS settings (via your registrar or DNS provider)
+
+## Setup Steps
+
+<Steps>
+  <Step title="Initiate domain setup">
+    Via the API:
+
+    ```bash
+    curl -X POST https://pods.roadbeat.net/api/v1/pods/pod_abc123/custom-domain \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{ "domain": "blog.example.com" }'
+    ```
+
+    Or via the Pod Dashboard: go to **Pod Settings → Custom Domain** and enter your domain.
+
+    The response includes DNS instructions and a verification token.
+  </Step>
+
+  <Step title="Add DNS records">
+    At your domain registrar, create these records:
+
+    **TXT record** (for verification):
+    | Type | Name | Value |
+    |------|------|-------|
+    | TXT | `_roadbeat-verify.blog.example.com` | `roadbeat-verify=abc123def456...` |
+
+    **CNAME record** (for routing):
+    | Type | Name | Value |
+    |------|------|-------|
+    | CNAME | `blog.example.com` | `pods-cdn.roadbeat.net` |
+
+    <Callout kind="info">
+      If you're using a root domain (e.g., `example.com` without a subdomain), you'll need a DNS provider that supports CNAME flattening (Cloudflare, Route53) since root domains cannot have CNAME records per RFC 1034.
+    </Callout>
+  </Step>
+
+  <Step title="Wait for DNS propagation">
+    DNS changes typically propagate within 1–4 hours, but can take up to 48 hours. You can check propagation at [dnschecker.org](https://dnschecker.org).
+  </Step>
+
+  <Step title="Verify the domain">
+    ```bash
+    curl -X POST https://pods.roadbeat.net/api/v1/pods/pod_abc123/custom-domain/verify \
+      -H "Authorization: Bearer YOUR_TOKEN"
+    ```
+
+    If verification succeeds, your custom domain is active and SSL is provisioned automatically via Let's Encrypt.
+  </Step>
+</Steps>
+
+## SSL Certificate
+
+SSL certificates are provisioned automatically after domain verification:
+
+- Issued by **Let's Encrypt** (free, trusted by all browsers)
+- Auto-renewed before expiration
+- Supports both the custom domain and the original `*.pods.roadbeat.net` subdomain
+
+## Removing a Custom Domain
+
+```bash
+curl -X DELETE https://pods.roadbeat.net/api/v1/pods/pod_abc123/custom-domain \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+After removal, your pod is still accessible at the original `{subdomain}.pods.roadbeat.net` URL.
+
+## Troubleshooting
+
+<ExpandableGroup>
+  <Expandable title="Verification fails" default-open="false">
+    - Ensure the TXT record name is exactly `_roadbeat-verify.{your-domain}` (some registrars auto-append the domain)
+    - Check that the verification token matches exactly (copy-paste from the API response)
+    - Wait for DNS propagation and retry
+  </Expandable>
+
+  <Expandable title="SSL certificate not provisioning" default-open="false">
+    - Verify the CNAME record is correct and propagated
+    - Ensure no CAA records on your domain block Let's Encrypt
+    - Check that port 80 is accessible (required for HTTP-01 challenge)
+  </Expandable>
+
+  <Expandable title="Domain works but shows wrong pod" default-open="false">
+    - Verify the domain is attached to the correct pod ID
+    - Remove and re-setup the domain on the correct pod
+  </Expandable>
+</ExpandableGroup>

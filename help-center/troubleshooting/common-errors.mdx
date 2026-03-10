@@ -1,0 +1,119 @@
+---
+title: Common Errors
+description: Solutions for common Content Pod errors and issues.
+---
+
+## API Errors
+
+<ExpandableGroup>
+  <Expandable title="401 Unauthorized" default-open="false">
+    **Cause:** Missing, expired, or invalid JWT token.
+
+    **Solution:**
+    - Ensure the `Authorization` header includes `Bearer ` (with a space) before the token
+    - Check that the token has not expired (decode it at jwt.io to check the `exp` claim)
+    - Verify the `JWT_SECRET` on the server matches the one used to sign the token
+    - Generate a new token if the current one has expired
+  </Expandable>
+
+  <Expandable title="400 Bad Request — Subdomain is already taken" default-open="false">
+    **Cause:** Another pod already uses this subdomain.
+
+    **Solution:** Choose a different subdomain. Subdomains must be globally unique across all managed pods.
+  </Expandable>
+
+  <Expandable title="413 Payload Too Large" default-open="false">
+    **Cause:** Upload would exceed the storage quota for the current tier.
+
+    **Solution:**
+    - Check current usage: `GET /api/v1/pods/:id/storage`
+    - Delete unused content or media to free space
+    - Upgrade to a higher tier for more storage
+  </Expandable>
+
+  <Expandable title="429 Too Many Requests" default-open="false">
+    **Cause:** Rate limit exceeded.
+
+    **Solution:**
+    - Check the `X-RateLimit-Reset` response header for when the limit resets
+    - Reduce request frequency
+    - For bulk operations, use batch endpoints where available
+  </Expandable>
+
+  <Expandable title="404 Not Found — Pod not found" default-open="false">
+    **Cause:** The pod ID does not exist or belongs to another user.
+
+    **Solution:**
+    - Verify the pod ID is correct
+    - Ensure you are authenticated as the pod's owner
+    - Pods marked as deleted return 404 — they cannot be recovered
+  </Expandable>
+</ExpandableGroup>
+
+## Content Generation Errors
+
+<ExpandableGroup>
+  <Expandable title="Template not found for content type" default-open="false">
+    **Cause:** No Handlebars template registered for the content type.
+
+    **Solution:** The `TemplateEngine` falls back to `base.hbs` for unknown types. If you need a custom template:
+
+    ```typescript
+    const engine = new TemplateEngine();
+    engine.registerTemplate('my-content-type', myHandlebarsSource);
+    ```
+
+    Built-in templates: `news`, `event`, `recipe`, `job`, `profile`, `embed`.
+  </Expandable>
+
+  <Expandable title="Signature verification failed" default-open="false">
+    **Cause:** Content was modified after signing, or the wrong public key is being used for verification.
+
+    **Solution:**
+    - Re-sign the content with the correct private key
+    - Ensure `public_key.pem` on the pod matches the key used for signing
+    - Check that the content was not modified after the `_signature` was computed
+    - Use `ContentVerificationService.verifyPod()` to run a full integrity check
+  </Expandable>
+
+  <Expandable title="Checksum mismatch" default-open="false">
+    **Cause:** A file's SHA-256 checksum does not match the value in `checksums.json`.
+
+    **Solution:**
+    - The file may have been corrupted during upload — re-upload it
+    - Regenerate checksums: the `ChecksumService` can recompute all checksums
+    - For migrations, run the verification step again — transient upload errors may cause mismatches
+  </Expandable>
+</ExpandableGroup>
+
+## Storage Errors
+
+<ExpandableGroup>
+  <Expandable title="S3 access denied" default-open="false">
+    **Cause:** Invalid or insufficient credentials for the S3 bucket.
+
+    **Solution:**
+    - Verify `accessKeyId` and `secretAccessKey` are correct
+    - Check that the IAM policy allows `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject`, `s3:ListBucket`
+    - Ensure the bucket exists and is in the correct region
+  </Expandable>
+
+  <Expandable title="SFTP connection failed" default-open="false">
+    **Cause:** Cannot connect to the SFTP server.
+
+    **Solution:**
+    - Verify host, port, username, and key/password
+    - Check that the SSH key file exists and has correct permissions (600)
+    - Ensure the remote path exists and is writable
+    - Test connectivity: `ssh -p 22 user@host`
+  </Expandable>
+
+  <Expandable title="CORS errors when accessing pod content" default-open="false">
+    **Cause:** The storage provider does not include CORS headers.
+
+    **Solution:**
+    - For S3 buckets, configure CORS policy to allow `GET` from `*`
+    - For SFTP/VPS hosting, add CORS headers in your web server config (Caddy/Nginx)
+    - Managed pods handle CORS automatically
+  </Expandable>
+</ExpandableGroup>

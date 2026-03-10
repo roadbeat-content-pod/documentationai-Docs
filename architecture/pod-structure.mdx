@@ -1,0 +1,241 @@
+---
+title: Pod Structure
+description: File layout, manifest schema, and content item format of a Content Pod.
+---
+
+Every Content Pod follows a standard directory structure. This page documents the file layout, manifest format, and content item schema.
+
+## Directory Layout
+
+```
+my-pod/
+├── manifest.json              # Pod manifest (signed) — content index + statistics
+├── checksums.json             # SHA-256 checksums for all files (signed)
+├── public_key.pem             # Publisher's Ed25519 public key
+├── robots.txt                 # Search engine directives
+├── sitemap.xml                # XML sitemap for SEO
+├── content/
+│   ├── news/
+│   │   └── my-article/
+│   │       ├── index.json     # Full content metadata (signed)
+│   │       ├── index.html     # Rendered HTML page
+│   │       ├── embed.html     # Embeddable card
+│   │       └── assets/        # Media files
+│   │           ├── hero.jpg
+│   │           ├── hero-medium.jpg
+│   │           └── hero-thumbnail.jpg
+│   └── event/
+│       └── summer-concert/
+│           ├── index.json
+│           ├── index.html
+│           ├── embed.html
+│           └── assets/
+├── media/                     # Shared media assets
+└── templates/                 # Handlebars templates (optional)
+```
+
+Content is organized by **content type** and **slug**: `content/{contentType}/{slug}/`.
+
+## Manifest (`manifest.json`)
+
+The manifest is the central index of the pod. It describes the publisher, pod metadata, content inventory, and integrity information.
+
+```json
+{
+  "version": "1.0",
+  "publisher": {
+    "id": "pub_abc123",
+    "name": "Alice Publisher",
+    "public_key_url": "/public_key.pem"
+  },
+  "pod": {
+    "id": "pod_xyz789",
+    "name": "Alice's Travel Blog",
+    "base_url": "https://alice.pods.roadbeat.net",
+    "created_at": "2026-01-15T10:00:00Z",
+    "updated_at": "2026-03-02T14:30:00Z"
+  },
+  "statistics": {
+    "total_items": 42,
+    "total_size_bytes": 156000000,
+    "items_by_type": {
+      "news": 30,
+      "event": 8,
+      "recipe": 4
+    },
+    "languages": ["en", "de"]
+  },
+  "content_index": [
+    {
+      "content_id": "c_001",
+      "content_type": "news",
+      "slug": "my-article",
+      "title": { "en": "My Article", "de": "Mein Artikel" },
+      "locale": "en",
+      "published_at": "2026-03-01T12:00:00Z",
+      "updated_at": "2026-03-01T12:00:00Z",
+      "size_bytes": 45000,
+      "checksum": "sha256:a1b2c3d4..."
+    }
+  ],
+  "checksums": {
+    "algorithm": "sha256",
+    "manifest_checksum": "sha256:e5f6a7b8...",
+    "computed_at": "2026-03-02T14:30:00Z"
+  },
+  "_signature": {
+    "algorithm": "Ed25519",
+    "signature": "base64...",
+    "content_hash": "sha256:...",
+    "signed_at": "2026-03-02T14:30:00Z",
+    "public_key_url": "/public_key.pem"
+  }
+}
+```
+
+<Callout kind="info">
+  The `_signature` field is computed over the entire manifest minus the `_signature` field itself. See [Content Signing](/architecture/content-signing) for the full process.
+</Callout>
+
+### Manifest Fields
+
+<ParamField body="version" param-type="string" required="true">
+  Manifest schema version. Currently `"1.0"`.
+</ParamField>
+
+<ParamField body="publisher" param-type="object" required="true">
+  Publisher identity: `id`, `name`, and `public_key_url`.
+</ParamField>
+
+<ParamField body="pod" param-type="object" required="true">
+  Pod metadata: `id`, `name`, `base_url`, `created_at`, `updated_at`.
+</ParamField>
+
+<ParamField body="statistics" param-type="object" required="true">
+  Aggregate statistics: `total_items`, `total_size_bytes`, `items_by_type`, `languages`.
+</ParamField>
+
+<ParamField body="content_index" param-type="array" required="true">
+  Array of content entries with `content_id`, `content_type`, `slug`, `title`, `locale`, timestamps, `size_bytes`, and `checksum`.
+</ParamField>
+
+## Content Item (`index.json`)
+
+Each content item is a JSON file conforming to the content type's schema from the roadbeat Schema Registry.
+
+```json
+{
+  "id": "c_001",
+  "content_type": "news",
+  "schema_version": "1.0",
+  "slug": "my-article",
+  "locale": "en",
+  "data": {
+    "title": "5 Hidden Beaches in Portugal",
+    "subtitle": "A travel story",
+    "body": "<p>Content here...</p>",
+    "author": "Alice",
+    "tags": ["travel", "europe"],
+    "hero_image": "./assets/hero.jpg",
+    "published_at": "2026-03-01T12:00:00Z"
+  },
+  "media": [
+    {
+      "id": "m_001",
+      "original": "./assets/hero.jpg",
+      "variants": {
+        "large": "./assets/hero-large.jpg",
+        "medium": "./assets/hero-medium.jpg",
+        "thumbnail": "./assets/hero-thumbnail.jpg"
+      },
+      "mime_type": "image/jpeg",
+      "size_bytes": 250000,
+      "width": 1920,
+      "height": 1080
+    }
+  ],
+  "_pod": {
+    "pod_id": "pod_xyz789",
+    "canonical_url": "https://alice.pods.roadbeat.net/content/news/my-article/",
+    "embed_url": "https://alice.pods.roadbeat.net/content/news/my-article/embed.html",
+    "generated_at": "2026-03-01T12:00:00Z"
+  },
+  "_signature": {
+    "algorithm": "Ed25519",
+    "signature": "base64...",
+    "content_hash": "sha256:...",
+    "signed_at": "2026-03-01T12:00:00Z",
+    "public_key_url": "/public_key.pem"
+  }
+}
+```
+
+### Content Item Fields
+
+<ParamField body="id" param-type="string" required="true">
+  Unique content identifier within the pod.
+</ParamField>
+
+<ParamField body="content_type" param-type="string" required="true">
+  Content type identifier matching a schema in the Schema Registry (e.g. `news`, `event`, `recipe`).
+</ParamField>
+
+<ParamField body="data" param-type="object" required="true">
+  The actual content data conforming to the content type's JSON Schema.
+</ParamField>
+
+<ParamField body="media" param-type="array" required="false">
+  Media file references with variants (original, large, medium, thumbnail).
+</ParamField>
+
+<ParamField body="_pod" param-type="object" required="true">
+  Pod-specific metadata: `pod_id`, `canonical_url`, `embed_url`, `generated_at`.
+</ParamField>
+
+<ParamField body="_signature" param-type="object" required="true">
+  Ed25519 signature over the content item. See [Content Signing](/architecture/content-signing).
+</ParamField>
+
+## Rendered HTML (`index.html`)
+
+Each content item includes a rendered HTML page with full SEO metadata:
+
+- `<title>` and `<meta name="description">` from content data
+- Open Graph tags (`og:title`, `og:description`, `og:image`, `og:type`)
+- Twitter Card tags
+- JSON-LD structured data (Schema.org)
+- `<link rel="alternate" type="application/json">` pointing to `index.json`
+- `<meta name="roadbeat:content-type">` and `<meta name="roadbeat:pod-id">`
+
+HTML is rendered from Handlebars templates by the `TemplateEngine`. Built-in templates exist for `news`, `event`, `recipe`, `job`, `profile`, and `embed`. Unknown content types fall back to `base.hbs`.
+
+## Checksums (`checksums.json`)
+
+Per-file SHA-256 checksums for integrity verification:
+
+```json
+{
+  "algorithm": "sha256",
+  "computed_at": "2026-03-02T14:30:00Z",
+  "files": {
+    "content/news/my-article/index.json": "sha256:a1b2c3...",
+    "content/news/my-article/index.html": "sha256:d4e5f6...",
+    "content/news/my-article/assets/hero.jpg": "sha256:789abc..."
+  },
+  "_signature": {
+    "algorithm": "Ed25519",
+    "signature": "base64..."
+  }
+}
+```
+
+The `ContentVerificationService` from `@roadbeat/content-pod-generator` can verify the entire pod's integrity by checking all checksums and signatures.
+
+## Embed HTML (`embed.html`)
+
+A lightweight, self-contained card designed for embedding on external sites via `<iframe>`:
+
+- Minimal CSS (no external dependencies)
+- Card layout with thumbnail, title, description, author, date
+- Links back to the full content page
+- `X-Frame-Options: ALLOWALL` header to allow embedding

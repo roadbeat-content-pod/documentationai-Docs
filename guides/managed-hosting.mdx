@@ -1,0 +1,152 @@
+---
+title: Managed Hosting
+description: Host your Content Pod on pods.roadbeat.net with automatic CDN, SSL, and billing.
+---
+
+The **Pod Hosting Service** provides managed hosting for Content Pods at `*.pods.roadbeat.net`. It handles CDN, SSL, storage quotas, custom domains, and billing — so you can focus on publishing content.
+
+## Creating a Pod
+
+<Tabs>
+  <Tab title="Dashboard" icon="layout-grid">
+    <Steps>
+      <Step title="Log in to the Pod Dashboard">
+        Open the Pod Dashboard at `https://dashboard.pods.roadbeat.net` (or `http://localhost:3401` in development) and sign in with your roadbeat account.
+      </Step>
+      <Step title="Click Create Pod">
+        Enter a **subdomain** (e.g., `travel-blog`), **name**, and optional **description**.
+      </Step>
+      <Step title="Select a tier">
+        Choose Free, Starter, Pro, or Enterprise based on your storage and feature needs.
+      </Step>
+      <Step title="Start publishing">
+        Your pod is immediately available at `https://{subdomain}.pods.roadbeat.net`.
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab title="API" icon="code">
+    ```bash
+    curl -X POST https://pods.roadbeat.net/api/v1/pods \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "My Travel Blog",
+        "subdomain": "travel-blog",
+        "description": "Adventures around Europe",
+        "tier": "starter"
+      }'
+    ```
+
+    **Response** `201 Created`:
+    ```json
+    {
+      "id": "pod_abc123",
+      "name": "My Travel Blog",
+      "subdomain": "travel-blog",
+      "tier": "starter",
+      "quotaBytes": 26843545600,
+      "usedBytes": 0,
+      "status": "active",
+      "createdAt": "2026-03-02T12:00:00Z"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Service Tiers
+
+| Tier | Storage | Custom Domains | Dynamic Features | CDN | Price |
+|------|---------|----------------|------------------|-----|-------|
+| **Free** | 5 GB | — | — | Shared | €0/mo |
+| **Starter** | 25 GB | 1 | Comments, Stats | Dedicated | €5/mo |
+| **Pro** | 100 GB | 3 | Full | Dedicated | €15/mo |
+| **Enterprise** | Unlimited | Unlimited | Full + SLA | Premium | Custom |
+
+<Callout kind="tip">
+  Start with the Free tier and upgrade any time. Your content and URLs stay the same — only storage limits and features change.
+</Callout>
+
+## Custom Domains
+
+Pods on Starter tier or above support custom domains (e.g., `blog.example.com`).
+
+<Steps>
+  <Step title="Initiate domain setup">
+    ```bash
+    curl -X POST https://pods.roadbeat.net/api/v1/pods/pod_abc123/custom-domain \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{ "domain": "blog.example.com" }'
+    ```
+  </Step>
+  <Step title="Add DNS records">
+    The API returns DNS instructions. Add these records at your domain registrar:
+
+    - **TXT** record: `_roadbeat-verify.blog.example.com` → `roadbeat-verify=abc123...`
+    - **CNAME** record: `blog.example.com` → `pods-cdn.roadbeat.net`
+  </Step>
+  <Step title="Verify the domain">
+    ```bash
+    curl -X POST https://pods.roadbeat.net/api/v1/pods/pod_abc123/custom-domain/verify \
+      -H "Authorization: Bearer YOUR_TOKEN"
+    ```
+
+    SSL is automatically provisioned via Let's Encrypt after verification succeeds.
+  </Step>
+</Steps>
+
+## CDN Integration
+
+Managed pods include automatic CDN distribution:
+
+- **BunnyCDN** as the primary CDN provider with European PoPs
+- **Cloudflare** as fallback for additional edge coverage
+- Immutable caching for media assets (1-year TTL)
+- Short-lived caching for JSON and HTML (5-minute TTL with stale-while-revalidate)
+
+## Storage Management
+
+Monitor and manage storage via the API:
+
+```bash
+# Check storage usage
+curl https://pods.roadbeat.net/api/v1/pods/pod_abc123/storage \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```json
+{
+  "quotaBytes": 26843545600,
+  "usedBytes": 524288000,
+  "usedPercent": 1.95,
+  "contentCount": 42,
+  "mediaCount": 156
+}
+```
+
+<Callout kind="alert">
+  Uploads are rejected with HTTP `413 Payload Too Large` when the storage quota is reached. Upgrade your tier or delete unused content to free space.
+</Callout>
+
+## Billing
+
+Billing is handled via Stripe. The API provides subscription management:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/billing/subscription` | `GET` | Current subscription details |
+| `/api/v1/billing/subscribe` | `POST` | Subscribe or upgrade tier |
+| `/api/v1/billing/cancel` | `POST` | Cancel subscription |
+| `/api/v1/billing/invoices` | `GET` | Invoice history |
+
+## Pod Dashboard
+
+The Angular management dashboard provides a visual interface for:
+
+- **Pod List** — overview of all pods with status, tier, and storage usage
+- **Content Browser** — browse, preview, and manage published content
+- **Storage Usage** — visual breakdown by content type and media
+- **Analytics** — page views, top content, geographic distribution, referrers
+- **Comment Moderation** — approve, reject, or mark comments as spam
+- **Subscriber Management** — view and export newsletter subscribers
+- **Feature Toggles** — enable/disable dynamic features per pod

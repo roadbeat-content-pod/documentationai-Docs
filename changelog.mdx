@@ -1,22 +1,100 @@
 ---
-title: Sample Changelog
-description: Sample release notes you can replace with your real updates.
+title: Changelog
+description: Release notes and updates for the Content Pod ecosystem.
 ---
 
-## Sample updates
+<Update label="2026-03-10" description="v1.0.0" tags={["feature"]}>
+  ## All 10 phases complete — 522 tests passing
 
-<Callout kind="alert">
-This changelog is example content. Replace every entry with your real releases.
-</Callout>
+  ### Packages
+  - **@roadbeat/content-pod-generator** — bundle generation, Ed25519 signing, Handlebars templates, manifests (84 tests)
+  - **@roadbeat/content-pod-storage** — S3, Hetzner, Contabo, SFTP, local, and managed storage adapters (26 tests)
+  - **@roadbeat/dynamic-features** — comments, reactions, statistics, newsletter, RSS feeds (101 tests)
+  - **@roadbeat/studio-integration** — Studio export bridge, Discovery Node publishing, layout export (50 tests)
+  - **@roadbeat/pod-portability** — full/selective/incremental export, import, 6-phase migration, backup & recovery (44 tests)
+  - **@roadbeat/production-readiness** — rate limiting, input sanitization, CORS, security headers, caching, health checks, structured logging, alerts (110 tests)
 
-<Update label="2026-01-26" description="Sample Update" tags={["sample"]}>
-## What changed
-- Cleaned up placeholder copy across the starter kit.
-- Added clearer "sample" messaging to avoid confusion.
+  ### Applications
+  - **Pod Hosting** — managed hosting at `*.pods.roadbeat.net` with CDN, custom domains, billing (67 tests)
+  - **Cloud Provisioner** — automated Hetzner & Contabo infrastructure provisioning with state machine and rollback (40 tests)
+  - **Pod Dashboard** — Angular 19 management UI with 14 components and 12 routes
+
+  ### Infrastructure
+  - Multi-stage Dockerfile for pod-hosting and cloud-provisioner
+  - Docker Compose with 5 services (API, dashboard, provisioner, PostgreSQL, Redis)
+  - GitHub Actions CI: Node 20+22 matrix, lint, test, build
 </Update>
 
-<Update label="2025-12-10" description="Sample Update" tags={["sample"]}>
-## What changed
-- Simplified the Quickstart steps.
-- Trimmed Help Center examples.
+<Update label="2026-03-02" description="v0.9.0" tags={["feature"]}>
+  ## Phase 10: Production Readiness
+  - Security hardening: rate limiter, input sanitizer, CORS handler, security headers
+  - Performance: in-memory LRU cache with TTL
+  - Monitoring: health checker, structured logger, alert manager
+  - CI/CD pipeline and Docker production builds
+</Update>
+
+<Update label="2026-02-25" description="v0.8.0" tags={["feature"]}>
+  ## Phase 9: Portability & Migration
+  - Full, selective, and incremental pod exports
+  - Import with conflict resolution (skip, overwrite, rename)
+  - 6-phase migration pipeline with zero-downtime support
+  - Backup and recovery with cross-region storage
+</Update>
+
+<Update label="2026-02-18" description="v0.7.0" tags={["feature"]}>
+  ## Phase 8: Pod Management Dashboard
+  - Angular 19 dashboard with 14 components and 12 routes
+  - Pod management, content browser, storage usage, analytics
+  - Cloud provisioning wizard, comment moderation, subscriber management
+</Update>
+
+<Update label="2026-02-10" description="v0.6.0" tags={["feature"]}>
+  ## Phase 7: Studio Integration Enhancement
+  - Enhanced export service with full bundle generation from Studio content
+  - Discovery Node integration for teaser publishing
+  - Layout export with region-based rendering
+</Update>
+
+<Update label="2026-02-03" description="v0.5.0" tags={["feature"]}>
+  ## Phase 6: Dynamic Features
+  - Comments with threaded moderation and Akismet spam detection
+  - Configurable reactions with session dedup
+  - GDPR-compliant statistics with IP anonymization
+  - Newsletter with double opt-in
+  - RSS 2.0 + Atom feed generation
+</Update>
+
+<Update label="2026-01-27" description="v0.4.0" tags={["feature"]}>
+  ## Phase 5: Managed Pod Hosting
+  - NestJS hosting service with JWT auth, tier enforcement, storage quotas
+  - Custom domain setup with DNS verification and auto-SSL
+  - Billing via Stripe (subscriptions, invoices)
+  - Prisma schema with 5 models
+</Update>
+
+<Update label="2026-01-20" description="v0.3.0" tags={["feature"]}>
+  ## Phase 4: Cloud Provisioner
+  - Hetzner Cloud provider (servers, SSH keys, firewalls, volumes)
+  - Contabo provider (OAuth 2.0, servers, secrets, object storage, DNS)
+  - Cloud-init templates for Studio Node, static pod, dynamic pod
+  - Provisioning orchestrator with state machine and rollback
+</Update>
+
+<Update label="2026-01-13" description="v0.2.0" tags={["feature"]}>
+  ## Phases 2–3: Storage & Integrity
+  - S3, Hetzner, Contabo, SFTP, local, and managed storage adapters
+  - StorageFactory for config-based provider creation
+  - Ed25519 content signing and signature verification
+  - SHA-256 checksums for all pod files
+  - Key rotation support with multiple valid keys
+  - Full pod integrity verification
+</Update>
+
+<Update label="2026-01-06" description="v0.1.0" tags={["feature"]}>
+  ## Phase 1: Content Pod Generator
+  - Bundle generation (index.json, index.html, embed.html, assets)
+  - Handlebars template engine with helpers
+  - Manifest generation with content index and statistics
+  - Pod publisher for orchestrating the full pipeline
+  - SEO metadata (Open Graph, Twitter Cards, JSON-LD)
 </Update>
