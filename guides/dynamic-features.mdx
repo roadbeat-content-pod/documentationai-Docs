@@ -228,3 +228,77 @@ Static HTML templates can integrate dynamic features via JavaScript:
   });
 </script>
 ```
+
+## Studio Consumer Integration
+
+roadbeat Studio's **Content Reader** automatically detects and renders dynamic pod features when loading content from a pod. This provides a native, integrated experience for reactions, comments, and newsletters within the Discover UI — without the user ever leaving Studio.
+
+### How It Works
+
+<Steps>
+  <Step title="Content loaded" icon="download">
+    When a user opens content in the Content Reader, Studio fetches the full content from the pod's delivery endpoint.
+  </Step>
+  <Step title="Capabilities probed" icon="search">
+    Studio reads the pod's `_roadbeat/config.json` to determine which dynamic features are enabled (reactions, comments, newsletter).
+  </Step>
+  <Step title="UI sections rendered" icon="layout">
+    For each enabled feature, a corresponding Angular component is rendered below the article body: `PodReactionsComponent`, `PodCommentsComponent`, or `PodNewsletterComponent`.
+  </Step>
+  <Step title="Interactions proxied" icon="arrow-right-left">
+    All user interactions (toggling a reaction, posting a comment, subscribing to a newsletter) are proxied through the Studio BFF to the pod's `/_dynamic/api/*` endpoints, avoiding CORS issues.
+  </Step>
+</Steps>
+
+### Pod-Proxy Endpoint
+
+Studio's BFF exposes a single proxy endpoint that forwards requests to any pod's dynamic API:
+
+```bash
+POST /api/v1/consumer/discover/pod-proxy
+{
+  "podBaseUrl": "https://pod.example.com",
+  "endpoint": "/_dynamic/api/reactions.php",
+  "method": "GET",
+  "params": { "content_id": "c_001" }
+}
+```
+
+Supported dynamic endpoints:
+
+| Endpoint | Feature | Methods |
+|----------|---------|---------|
+| `/_dynamic/api/reactions.php` | Reactions | GET (counts), POST (toggle) |
+| `/_dynamic/api/comments.php` | Comments | GET (list), POST (submit) |
+| `/_dynamic/api/newsletter.php` | Newsletter | POST (subscribe) |
+
+### Capability Detection
+
+The pod's `_roadbeat/config.json` must advertise enabled features:
+
+```json
+{
+  "dynamic": {
+    "reactions": { "enabled": true, "types": ["like", "love", "fire", "clap", "thinking"] },
+    "comments": { "enabled": true, "moderation": "auto-approve", "maxDepth": 3 },
+    "newsletter": { "enabled": true },
+    "statistics": { "enabled": true }
+  }
+}
+```
+
+<Callout kind="info">
+  If a feature is not listed in `config.json` or has `"enabled": false`, the corresponding UI section is hidden in the Content Reader. This ensures a clean reading experience even when the pod only supports a subset of dynamic features.
+</Callout>
+
+### Tip System
+
+In addition to pod-native dynamic features, the Studio Content Reader includes a **Tip System** that lets users compensate content creators. Tips are tracked client-side in `localStorage` with a configurable monthly budget (default: 100 units).
+
+- **Manual tips** — users select a 1x–5x multiplier and confirm
+- **Auto-tips** — an optional countdown timer (default: 30s) automatically tips after sustained reading
+- **Budget tracking** — monthly spending stats with a visual progress bar
+
+<Callout kind="tip">
+  The tip system is independent of the pod's dynamic features — it works for all content, whether the pod is static or dynamic. Tip data is currently stored locally; future versions will sync to the Context Directory for cross-device persistence.
+</Callout>

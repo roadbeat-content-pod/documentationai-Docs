@@ -3,6 +3,18 @@ title: Changelog
 description: Release notes and updates for the Content Pod ecosystem.
 ---
 
+<Update label="2026-03-17" description="v1.0.1" tags={["feature"]}>
+  ## Studio Consumer Integration for Dynamic Features
+
+  **Content Reader integration**
+  - roadbeat Studio's Content Reader now automatically detects and renders dynamic pod features (reactions, comments, newsletter) when loading content from a pod
+  - Capability detection via `_roadbeat/config.json` — UI sections only appear when the pod explicitly enables them
+  - All interactions proxied through Studio's BFF (`POST /discover/pod-proxy`) to avoid CORS issues
+
+  **Documentation**
+  - Added "Studio Consumer Integration" section to the Dynamic Features guide covering the pod-proxy architecture, capability detection, supported endpoints, and tip system integration
+</Update>
+
 <Update label="2026-03-10" description="v1.0.0" tags={["feature"]}>
   ## All 10 phases complete — 522 tests passing
 
