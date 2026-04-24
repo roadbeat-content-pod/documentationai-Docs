@@ -3,6 +3,29 @@ title: Changelog
 description: Release notes and updates for the Content Pod ecosystem.
 ---
 
+<Update label="2026-04-24" description="v1.2.1" tags={["bugfix"]}>
+  ## Pod Hosting — DI & Local Development Fixes
+
+  **BillingService injection failure**
+
+  - `BillingController` used `@Inject('BILLING_SERVICE')` to request a named provider, but `AppModule` registered `BillingService` as a plain class — NestJS could not resolve the dependency and the service failed to start
+  - Fixed by registering `BillingService` with the named token: `{ provide: 'BILLING_SERVICE', useClass: BillingService }`
+
+  **JwtAuthGuard — 500 on all routed endpoints**
+
+  - Every HTTP request to the Pod Hosting API returned `500 Internal Server Error` with `this.reflector.getAllAndOverride is not a function`
+  - Root cause: `tsx` (used for `start:dev`) uses esbuild, which does **not** support `emitDecoratorMetadata` — NestJS could not infer the `Reflector` type from the `JwtAuthGuard` constructor, so the `Reflector` was never injected
+  - Fixed by switching `APP_GUARD` from `useClass` to a `useFactory` provider with explicit `inject: [Reflector]`, ensuring correct dependency injection regardless of transpiler metadata support
+
+  **Local development `.env`**
+
+  - Added documentation and a `.env` template for local development — the Pod Hosting app requires `DATABASE_URL` and optionally `JWT_SECRET` to connect to the `roadbeat_content_pod` database
+
+  <Callout kind="tip">
+    When using `tsx` or `esbuild` with NestJS, always use explicit `@Inject()` decorators or factory providers — do not rely on TypeScript reflection metadata for dependency injection.
+  </Callout>
+</Update>
+
 <Update label="2026-05-23" description="v1.2.0" tags={["feature"]}>
   ## Mobile App Pod Management (Phase 6)
 

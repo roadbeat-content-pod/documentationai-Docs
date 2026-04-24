@@ -83,6 +83,19 @@ The Dockerfile uses multi-stage builds. You can build each service independently
     pnpm -r run build
     ```
   </Step>
+  <Step title="Create a .env file">
+    The Pod Hosting app reads environment variables via NestJS `ConfigModule`. Create a `.env` in the repository root:
+
+    ```bash
+    # content-pod/.env
+    DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/roadbeat_content_pod
+    JWT_SECRET=dev-secret-change-in-production
+    ```
+
+    <Callout kind="alert">
+      The `roadbeat_content_pod` database must exist before starting the service. Create it with `CREATE DATABASE roadbeat_content_pod;` and run `pnpm --filter @roadbeat/pod-hosting exec prisma migrate deploy` to apply the schema.
+    </Callout>
+  </Step>
   <Step title="Run tests">
     ```bash
     pnpm -r test
