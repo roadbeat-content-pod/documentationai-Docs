@@ -3,6 +3,36 @@ title: Changelog
 description: Release notes and updates for the Content Pod ecosystem.
 ---
 
+<Update label="2026-05-23" description="v1.2.0" tags={["feature"]}>
+  ## Mobile App Pod Management (Phase 6)
+
+  Full Content Pod management in the roadbeat Mobile App:
+
+  - **PodDataService** — signal-based Angular service for config, status, quota tracking, publish/unpublish, and connectivity testing
+  - **PodStatusCardComponent** — dashboard card embedded on profile page showing mode, tier, quota progress bars, and dynamic feature badges
+  - **PodContentListPage** — browse, search, and sort published content items with swipe-to-unpublish
+  - **PodSettingsPage** — full settings view with mode, tier, quota usage, dynamic features (comments/reactions/statistics), and connectivity test
+
+  Routes: `/tabs/publishing/pod`, `/tabs/publishing/pod-content`, `/tabs/publishing/pod/advanced`
+
+  E2E tested: 37/37 pass (config fetch, publish tracking, dynamic features, quota enforcement, unconfigured state)
+</Update>
+
+<Update label="2026-05-20" description="v1.1.0" tags={["feature"]}>
+  ## Free Pod Auto-Provisioning (Phase 5)
+
+  New organizations created via the multi-tenant Studio now get a free Content Pod automatically:
+
+  - **Pod mode selection** — `podMode: 'static' | 'dynamic'` on `CreateOrganizationDto`
+  - **Auto-provisioning** — `ContentPodSetupService.setupFreeStaticPod()` / `setupFreeDynamicPod()` called during org creation
+  - **Quota enforcement** — free tier: 500 MB storage, 200 items; HTTP 403 on exceed
+  - **Quota tiers** — free, starter (5 GB / 5K), pro (20 GB / 50K), enterprise (unlimited)
+  - **Admin quota management** — `PUT /manage/content-pod/config` accepts `quotaItemCount` and `quotaStorageBytes`
+  - **Onboarding status** — `GET /platform/onboarding/status` returns pod config, quota, and usage
+
+  E2E tested: 57/57 pass (static/dynamic provisioning, publish pipeline, quota 403 enforcement)
+</Update>
+
 <Update label="2026-03-17" description="v1.0.1" tags={["feature"]}>
   ## Studio Consumer Integration for Dynamic Features
 

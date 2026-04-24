@@ -182,3 +182,130 @@ interface StudioContentProvider {
 ```
 
 This is implemented by the Studio's backend modules. If building a custom integration, implement this interface to connect any CMS to the Content Pod export pipeline.
+
+## Free Pod Auto-Provisioning
+
+When a new organization is created via the multi-tenant Studio, a free Content Pod is automatically provisioned based on the user's selection.
+
+### Onboarding Flow
+
+```mermaid
+graph TD
+    A[Create Organization] -->|podMode: static/dynamic| B{Pod Mode?}
+    B -->|static| C[setupFreeStaticPod]
+    B -->|dynamic| D[setupFreeDynamicPod]
+    C --> E[ContentPodConfig created]
+    D --> E
+    E --> F[Pod active with free tier]
+    F --> G[500 MB storage, 200 items]
+```
+
+### API — Create Organization with Pod
+
+```typescript
+// POST /api/v1/platform/organizations
+{
+  name: "My Publisher",
+  slug: "my-publisher",
+  adminName: "Admin",
+  adminEmail: "admin@example.com",
+  adminPassword: "...",
+  podMode: "static"  // or "dynamic"
+}
+
+// Response includes podSetup:
+{
+  data: {
+    organization: { id, name, slug, plan },
+    adminUser: { id, email },
+    podSetup: {
+      podMode: "static",
+      tier: "free",
+      subdomain: "my-publisher",
+      baseUrl: "https://my-publisher.pods.roadbeat.net",
+      status: "active"
+    }
+  }
+}
+```
+
+### Quota Enforcement
+
+Publishing is blocked with HTTP 403 when quotas are exceeded:
+
+| Tier | Storage | Items |
+|------|---------|-------|
+| free | 500 MB | 200 |
+| starter | 5 GB | 5,000 |
+| pro | 20 GB | 50,000 |
+| enterprise | unlimited | unlimited |
+
+<Callout kind="info">
+  Admins can set custom quotas per organization via `PUT /manage/content-pod/config` with `quotaItemCount` and `quotaStorageBytes` fields.
+</Callout>
+
+### Onboarding Status
+
+The onboarding status endpoint includes pod information:
+
+```typescript
+// GET /api/v1/platform/onboarding/status
+{
+  data: {
+    organization: { ... },
+    contentPod: {
+      podMode: "static",
+      tier: "free",
+      status: "active",
+      subdomain: "my-publisher",
+      quota: { itemCount: 200, storageBytes: 524288000 },
+      usage: { publishedCount: 12, totalSizeBytes: 2450000 }
+    }
+  }
+}
+```
+
+## Mobile App Integration
+
+The roadbeat Mobile App includes full Content Pod management via the `PodDataService` and dedicated UI components.
+
+### Components
+
+| Component | Description |
+|-----------|-------------|
+| `PodDataService` | Signal-based Angular service for config, status, quota, publish/unpublish |
+| `PodStatusCardComponent` | Dashboard card showing mode, tier, quota progress bars, dynamic features |
+| `PodContentListPage` | Browse, search, sort published content with swipe-to-unpublish |
+| `PodSettingsPage` | Full settings: mode, tier, quota usage, dynamic features, connectivity test |
+
+### Mobile Routes
+
+| Route | Component | Description |
+|-------|-----------|-------------|
+| `/tabs/publishing/pod` | PodSettingsPage | Pod mode, tier, quota, dynamic features |
+| `/tabs/publishing/pod/advanced` | PodConfigPage | Raw S3/endpoint configuration |
+| `/tabs/publishing/pod-content` | PodContentListPage | Published items browser |
+
+### PodDataService API
+
+The service uses Angular signals for reactive state management:
+
+```typescript
+// Computed signals
+isConfigured: Signal<boolean>        // Pod exists
+podMode: Signal<'static' | 'dynamic' | null>
+tier: Signal<string | null>
+quota: Signal<PodQuotaInfo | null>   // percentages, isNearLimit, isAtLimit
+dynamicFeatures: Signal<{ comments, reactions, statistics } | null>
+publishedItems: Signal<PodContentItem[]>
+
+// Actions (call Studio API via HttpClient)
+loadConfig()                         // GET /manage/content-pod/config
+publishContent(contentId)            // POST /manage/content-pod/publish/:id
+unpublishContent(contentId)          // POST /manage/content-pod/unpublish/:id
+testConnectivity()                   // GET /manage/content-pod/test
+```
+
+<Callout kind="tip">
+  The PodStatusCard is embedded directly on the mobile profile page, giving publishers an at-a-glance view of their pod's health, storage usage, and tier without navigating to settings.
+</Callout>
