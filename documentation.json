@@ -86,6 +86,12 @@
                 "icon": "plug"
               },
               {
+                "title": "ActivityPub Federation",
+                "path": "guides/federation",
+                "icon": "globe",
+                "badge": "New"
+              },
+              {
                 "title": "Portability & Migration",
                 "path": "guides/portability",
                 "icon": "arrow-right-left"

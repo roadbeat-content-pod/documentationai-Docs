@@ -3,6 +3,44 @@ title: Changelog
 description: Release notes and updates for the Content Pod ecosystem.
 ---
 
+<Update label="2026-05-26" description="v1.1.0" tags={["feature"]}>
+  ## ActivityPub Federation for Content Pods
+
+  Content Pods now have first-class **ActivityPub federation** support. Each pod gets its own Fediverse identity — users on Mastodon, Lemmy, and other servers can follow individual pods and receive new content automatically.
+
+  **Pod Actor Provisioning:**
+  - Automatic actor creation during pod setup with gateway-held encrypted keys
+  - Exportable key pairs for self-hosted pod migrations
+  - `_activitypub` manifest block injected into `manifest.json`
+
+  **Outbox & Content Delivery:**
+  - Webhook-driven outbox: publish/unpublish events trigger immediate ActivityStreams delivery
+  - Content mapped to `Article` (or appropriate AS2 type) with full metadata
+  - `OrderedCollection` pagination for the outbox endpoint
+
+  **Inbox Sidecar (Dynamic Pods):**
+  - New `activitypub-inbox.php` dynamic feature handles inbound activities
+  - Stores replies, likes, and boosts in the pod's local SQLite database
+  - HMAC-authenticated forwarding from the Federation Gateway
+  - Queryable via `GET /_dynamic/api/activitypub-inbox.php?content_id=...`
+
+  **Reply Mirroring (Static Pods):**
+  - Gateway stores inbound interactions locally for static pods
+  - Readable via admin API (`/admin/pods/:actorId/replies`, `/reactions`)
+  - Studio and mobile display federated interactions alongside native comments
+
+  **Pod Migration (Move):**
+  - Migrate pod identity between hosts using ActivityPub `Move`
+  - Bidirectional `alsoKnownAs` verification for security
+  - 365-day overlap period keeps old actor live as redirect
+  - Full admin API: migrate, status, also-known-as, finalize
+  - Documented runbook for self-hosted operators
+
+  <Callout kind="tip">
+    Enable the inbox sidecar by setting `activitypub_inbox.enabled: true` in your pod's dynamic features config.
+  </Callout>
+</Update>
+
 <Update label="2026-04-24" description="v1.0.4" tags={["bugfix"]}>
   ## Pod Hosting — DI & Local Development Fixes
 
