@@ -14,6 +14,8 @@ my-pod/
 ├── public_key.pem             # Publisher's Ed25519 public key
 ├── robots.txt                 # Search engine directives
 ├── sitemap.xml                # XML sitemap for SEO
+├── .well-known/
+│   └── roadbeat-publisher.json  # Publisher verification (pods of mobile accounts)
 ├── content/
 │   ├── news/
 │   │   └── my-article/
@@ -203,11 +205,67 @@ Each content item includes a rendered HTML page with full SEO metadata:
 - `<title>` and `<meta name="description">` from content data
 - Open Graph tags (`og:title`, `og:description`, `og:image`, `og:type`)
 - Twitter Card tags
-- JSON-LD structured data (Schema.org)
+- JSON-LD structured data (Schema.org) — the built `Article` object from the page's SEO metadata, not the raw content data
 - `<link rel="alternate" type="application/json">` pointing to `index.json`
 - `<meta name="roadbeat:content-type">` and `<meta name="roadbeat:pod-id">`
 
 HTML is rendered from Handlebars templates by the `TemplateEngine`. Built-in templates exist for `news`, `event`, `recipe`, `job`, `profile`, and `embed`. Unknown content types fall back to `base.hbs`.
+
+### Localized Fields and Locations
+
+Content fields are often **localized objects** such as `{ "en": "Apple pie", "de": "Apfelkuchen" }`. The generator resolves them to text everywhere they are shown — page title, meta/Open Graph/Twitter tags, description, body, and the `title`/`description` in `manifest.json`:
+
+1. the item's `locale`,
+2. then `en`,
+3. then the first text value of the object.
+
+**Location** fields (e.g. of events) may be a string or an object with venue and address. Objects are rendered as one readable line — venue, street and number, postal code and city, country (coordinates are left out):
+
+```
+Messe Frankfurt, Ludwig-Erhard-Anlage 1, 60327 Frankfurt, Germany
+```
+
+An `online` location without address parts is shown as `Online`.
+
+Custom templates can use the same logic through these Handlebars helpers:
+
+| Helper | Example | Output |
+|--------|---------|--------|
+| `localized` | `{{localized content.data.teaser content.locale}}` | The field's text in the page language |
+| `formatLocation` | `{{formatLocation content.data.location content.locale}}` | A readable place line |
+| `jsonLd` | `<script type="application/ld+json">{{jsonLd seo.json_ld}}</script>` | Raw JSON for a JSON-LD script, with `<` escaped so content cannot close the `<script>` element |
+
+<Callout kind="tip">
+  Use `jsonLd`, not `json`, inside `<script>` blocks — the `json` helper renders a `<pre><code>` block for display.
+</Callout>
+
+## Publisher Verification (`.well-known/roadbeat-publisher.json`)
+
+Pods provisioned for **local (mobile-only) accounts** carry a verification document at `/.well-known/roadbeat-publisher.json`. Discovery Nodes fetch it to verify a publisher that has no domain of its own (pod-host verification) and to learn the owner's publishing status and current public key.
+
+```json
+{
+  "version": 1,
+  "podHost": "p-4f9a2c7e1b.pods.roadbeat.net",
+  "publicKey": "MCowBQYDK2VwAyEA…",
+  "status": "active",
+  "publishers": [
+    { "nodeUrl": "https://discovery.roadbeat.net", "publisherId": "pub_7f3a…" }
+  ],
+  "updatedAt": "2026-11-07T16:51:18.000Z"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `version` | Document format version (`1`) |
+| `podHost` | Host name of the pod |
+| `publicKey` | The publisher's current Ed25519 public key |
+| `status` | `active`, `suspended` (account deletion scheduled), or `deleted` (account purged) |
+| `publishers` | Discovery Node registrations: `nodeUrl` + `publisherId` |
+| `updatedAt` | Time the document was written |
+
+Only the platform writes this file (through the Service API). Upload tokens cannot create any path segment starting with a dot. See [Publishing from Mobile Accounts](/guides/local-publishing#publisher-verification-document).
 
 ## Checksums (`checksums.json`)
 

@@ -1,9 +1,9 @@
 ---
 title: Authentication
-description: JWT Bearer authentication for the Content Pod APIs.
+description: JWT Bearer tokens, the service key, and scoped upload tokens for the Content Pod APIs.
 ---
 
-All Content Pod API endpoints require authentication via **JWT Bearer tokens** unless explicitly marked as public. Both the Pod Hosting API and Cloud Provisioner API use the same authentication scheme.
+All Content Pod API endpoints require authentication via **JWT Bearer tokens** unless explicitly marked as public. Both the Pod Hosting API and Cloud Provisioner API use the same authentication scheme. Two exceptions in the Pod Hosting API: the [Service API](#service-key) uses `X-Service-Key`, and the [Pod Files API](#upload-tokens) uses scoped upload tokens.
 
 ## Authentication Header
 
@@ -71,6 +71,57 @@ sequenceDiagram
     A-->>C: New JWT token
 ```
 
+## Service Key
+
+The **Service API** (`/api/v1/service/*`) is for platform services that manage pods on a user's behalf — today the Context Directory, which provisions pods for local (mobile-only) accounts. It does not accept user JWTs; every request carries the shared service key:
+
+```bash
+curl https://pods.roadbeat.net/api/v1/service/pods/$POD_ID \
+  -H "X-Service-Key: $POD_HOSTING_SERVICE_KEY"
+```
+
+<ParamField header="X-Service-Key" param-type="string" required="true">
+  The value of `POD_HOSTING_SERVICE_KEY` on the Pod Hosting server (at least 16 characters). The Context Directory must be configured with the same value.
+</ParamField>
+
+- The key is compared in constant time.
+- The guard **fails closed**: if `POD_HOSTING_SERVICE_KEY` is not set or shorter than 16 characters, every request returns `401 Service access is not configured`.
+- A wrong key returns `401 Invalid service key`.
+- The service key only reaches pods that were created through the Service API (`provisionedBy: context-directory`).
+
+## Upload Tokens
+
+The **Pod Files API** (`/api/v1/pod-files/{podId}/…`) is authenticated with a **scoped upload token** instead of a JWT. The mobile app receives it via the Context Directory and uploads content directly into its own pod.
+
+```bash
+curl -X PUT https://pods.roadbeat.net/api/v1/pod-files/$POD_ID/content/news/hello/index.json \
+  -H "Authorization: Bearer rb_pod_Jx3k9…" \
+  -H "Content-Type: application/json" \
+  --data-binary @index.json
+```
+
+<ParamField header="Authorization" param-type="string" required="true">
+  `Bearer rb_pod_…` — an upload token issued by `POST /api/v1/service/pods/{id}/upload-token`.
+</ParamField>
+
+| Property | Value |
+|----------|-------|
+| Format | `rb_pod_` + 32 random bytes (base64url) |
+| Scope | One pod — a token of another pod returns `401` |
+| Lifetime | 30 days by default, at most 90 days |
+| Storage | Only the SHA-256 hash is stored; the token is shown once |
+| Revocation | `revokeOthers: true` on a new token, suspending the pod, or deleting the pod |
+
+| Response | Meaning |
+|----------|---------|
+| `401 Missing upload token` | No `Bearer` header, or the token does not start with `rb_pod_` |
+| `401 Invalid or expired upload token` | Unknown, expired, or revoked token, or a token of another pod |
+| `403 Pod is suspended` | The token is valid but the pod is not active |
+
+<Callout kind="info">
+  The Pod Files API sends `Access-Control-Allow-Origin: *`. Because the token travels in a header and no cookies are used, this is safe — the endpoint behaves like a presigned upload URL.
+</Callout>
+
 ## Public Endpoints
 
 The following endpoints do **not** require authentication:
@@ -80,7 +131,7 @@ The following endpoints do **not** require authentication:
 | `GET /health` | Health check |
 | `GET /health/liveness` | Liveness probe |
 
-All other endpoints return `401 Unauthorized` if the token is missing, malformed, or expired.
+All other endpoints return `401 Unauthorized` if the credential (JWT, service key, or upload token) is missing, malformed, or expired.
 
 ## Error Responses
 
@@ -141,7 +192,7 @@ All other endpoints return `401 Unauthorized` if the token is missing, malformed
 </Expandable>
 
 <Expandable title="Can I use API keys instead of JWT?" default-open="false">
-  Currently, only JWT Bearer tokens are supported. API key authentication may be added in a future release for machine-to-machine integrations.
+  User-facing endpoints accept only JWT Bearer tokens. For machine-to-machine access between roadbeat platform services there is the [service key](#service-key); for uploads from the mobile app there are [scoped upload tokens](#upload-tokens). General-purpose API keys for third-party integrations are not available.
 </Expandable>
 
 ## Security Best Practices

@@ -3,6 +3,66 @@ title: Changelog
 description: Release notes and updates for the Content Pod ecosystem.
 ---
 
+<Update label="2026-11-08" description="v1.2.1" tags={["bugfix"]}>
+  ## Generator — No More `[object Object]` in Pod Pages
+
+  **Localized fields**
+
+  - Localized fields (`{ "en": "…", "de": "…" }`) were turned into text with `String()`, so page titles, meta/Open Graph/Twitter tags, descriptions, page bodies and the `title`/`description` in `manifest.json` showed `[object Object]` — 73 of 173 items in the demo pod were affected
+  - They now resolve to the item's locale, then `en`, then the first text value
+
+  **Locations**
+
+  - Event locations given as objects (venue, address) are now rendered as one readable line, e.g. `Messe Frankfurt, Ludwig-Erhard-Anlage 1, 60327 Frankfurt, Germany`; coordinates are left out
+
+  **Valid JSON-LD**
+
+  - The `<script type="application/ld+json">` block contained the `json` helper's `<pre><code>` rendering of the raw content data — it now carries the built Schema.org `Article` object
+  - `<` is escaped so content cannot close the `<script>` element
+
+  **New template helpers:** `localized`, `formatLocation`, `jsonLd` — see [Localized Fields and Locations](/architecture/pod-structure#localized-fields-and-locations).
+
+  <Callout kind="tip">
+    Republish items generated with an earlier version to fix their pages and manifest entries.
+  </Callout>
+</Update>
+
+<Update label="2026-11-07" description="v1.2.0" tags={["feature", "security"]}>
+  ## Publishing from Mobile Accounts
+
+  Local (mobile-only) accounts can now publish to their own Content Pod. The **Context Directory** provisions and manages the pod on the user's behalf; the app uploads content directly with a scoped token. See [Publishing from Mobile Accounts](/guides/local-publishing).
+
+  **Service API** — `/api/v1/service/pods` (`X-Service-Key`)
+
+  - Create a free-tier pod for a Context Directory user: 500 MB storage, 200 content items, one pod per owner
+  - Get status and usage, issue upload tokens, write the `.well-known` document
+  - Suspend (uploads stop, tokens revoked), resume, and delete (files removed) — follows the account's deletion grace period
+  - Fails closed: without `POD_HOSTING_SERVICE_KEY` (at least 16 characters) every request is rejected; constant-time key comparison
+
+  **Scoped upload tokens & Pod Files API** — `/api/v1/pod-files/{podId}/{path}`
+
+  - `rb_pod_…` tokens per pod: 30 days by default (max. 90), revocable, only the SHA-256 hash is stored
+  - `PUT` / `DELETE` files with the raw request body (max. 25 MB per file)
+  - Storage quota and item limit enforced; `content/{type}/{slug}/index.json` is tracked as a content item
+  - Path traversal rejected; dot-paths reserved for the platform
+  - Open CORS (`*`) for the token-authenticated upload path — the app's WebView origin varies (`capacitor://localhost`, `https://localhost`)
+
+  **Publisher verification document**
+
+  - `/.well-known/roadbeat-publisher.json` lets Discovery Nodes verify publishers without a domain (pod-host verification)
+  - Carries the owner's publishing `status` (`active`, `suspended`, `deleted`) and current public key, which Discovery Nodes apply via pod-sync
+  - The development static pod server now serves dotfiles so the document is reachable
+
+  **Configuration & database**
+
+  - New environment variables `POD_HOSTING_SERVICE_KEY`, `POD_FILES_ROOT`, `POD_PUBLIC_URL_TEMPLATE`; new `apps/pod-hosting/.env.example`
+  - Migration `20261107180000_service_pods_upload_tokens`: `pods.max_items`, `pods.provisioned_by`, table `pod_upload_tokens` — run `prisma migrate deploy`
+
+  <Callout kind="info">
+    Pod files are stored on the local file system under `POD_FILES_ROOT` for now. S3-compatible storage for production will follow behind the same API.
+  </Callout>
+</Update>
+
 <Update label="2026-05-26" description="v1.1.0" tags={["feature"]}>
   ## ActivityPub Federation for Content Pods
 

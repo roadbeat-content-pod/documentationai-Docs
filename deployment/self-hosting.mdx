@@ -84,13 +84,28 @@ The Dockerfile uses multi-stage builds. You can build each service independently
     ```
   </Step>
   <Step title="Create a .env file">
-    The Pod Hosting app reads environment variables via NestJS `ConfigModule`. Create a `.env` in the repository root:
+    The Pod Hosting app reads environment variables via NestJS `ConfigModule` from a `.env` in its working directory. Copy the template and adjust it:
 
     ```bash
-    # content-pod/.env
-    DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/roadbeat_content_pod
-    JWT_SECRET=dev-secret-change-in-production
+    cp apps/pod-hosting/.env.example apps/pod-hosting/.env
     ```
+
+    ```bash
+    # apps/pod-hosting/.env
+    DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@localhost:5432/roadbeat_content_pod"
+    JWT_SECRET=change-me
+    PORT=3400
+
+    # Service API for the Context Directory (pods for local accounts) — at least 16 characters,
+    # must match the Context Directory's POD_HOSTING_SERVICE_KEY
+    POD_HOSTING_SERVICE_KEY=change-me-at-least-16-chars
+    # Where pod files are stored (dev: the static pod root served by serve-static-pod.ts)
+    POD_FILES_ROOT=../../dev-pods/static
+    # Public URL of a pod; {subdomain} is replaced
+    POD_PUBLIC_URL_TEMPLATE=http://localhost:3403/{subdomain}
+    ```
+
+    With these defaults, files uploaded through the Pod Files API are served right away by the static pod server (`pnpm serve:static-pod`, port 3403), including `/.well-known/roadbeat-publisher.json`.
 
     <Callout kind="alert">
       The `roadbeat_content_pod` database must exist before starting the service. Create it with `CREATE DATABASE roadbeat_content_pod;` and run `pnpm --filter @roadbeat/pod-hosting exec prisma migrate deploy` to apply the schema.
@@ -101,7 +116,7 @@ The Dockerfile uses multi-stage builds. You can build each service independently
     pnpm -r test
     ```
 
-    All 522 tests should pass across 8 packages.
+    All tests should pass across all packages.
   </Step>
   <Step title="Start a service">
     ```bash
@@ -125,6 +140,13 @@ The Dockerfile uses multi-stage builds. You can build each service independently
 | `REDIS_URL` | — | Redis connection string |
 | `JWT_SECRET` | `dev-secret-change-in-production` | JWT signing secret |
 | `NODE_ENV` | `development` | Environment (`development` / `production`) |
+| `POD_HOSTING_SERVICE_KEY` | — | Shared key for the Service API (`/api/v1/service/*`), at least 16 characters; must match the Context Directory's value. Unset → the Service API rejects every request (fails closed) |
+| `POD_FILES_ROOT` | `../../dev-pods/static` (relative to the working directory) | Directory with one folder per pod for files uploaded via the Pod Files API |
+| `POD_PUBLIC_URL_TEMPLATE` | `https://{subdomain}.pods.roadbeat.net` | Public base URL of a pod; `{subdomain}` is replaced. Used for upload responses and the `.well-known` document's `podHost` |
+
+<Callout kind="alert">
+  If you serve pods from `POD_FILES_ROOT` with your own web server, make sure it serves **dotfiles** — Discovery Nodes fetch `/.well-known/roadbeat-publisher.json` to verify publishers, also while a pod is suspended. Uploads cannot create dot-paths, so only platform-written dotfiles exist.
+</Callout>
 
 ### Cloud Provisioner (`apps/cloud-provisioner`)
 

@@ -86,10 +86,15 @@
                 "icon": "plug"
               },
               {
+                "title": "Publishing from Mobile Accounts",
+                "path": "guides/local-publishing",
+                "icon": "smartphone",
+                "badge": "New"
+              },
+              {
                 "title": "ActivityPub Federation",
                 "path": "guides/federation",
-                "icon": "globe",
-                "badge": "New"
+                "icon": "globe"
               },
               {
                 "title": "Portability & Migration",

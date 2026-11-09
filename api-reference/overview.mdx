@@ -8,7 +8,10 @@ The Content Pod ecosystem exposes two REST APIs:
 - **Pod Hosting API** — managed pod lifecycle, content, custom domains, billing
 - **Cloud Provisioner API** — automated infrastructure provisioning on Hetzner and Contabo
 
-Both APIs use JSON request/response bodies and require JWT Bearer authentication.
+Both APIs use JSON request/response bodies and require JWT Bearer authentication. Two parts of the Pod Hosting API use their own credentials instead — see [Authentication](/api-reference/authentication):
+
+- the **Service API** (`/service/pods`) — `X-Service-Key`, for the Context Directory
+- the **Pod Files API** (`/pod-files`) — a scoped upload token (`Bearer rb_pod_…`), for the mobile app
 
 ## Base URLs
 
@@ -55,6 +58,29 @@ All endpoints are prefixed with `/api/v1`.
 | `POST` | `/billing/subscribe` | Subscribe or upgrade tier |
 | `POST` | `/billing/cancel` | Cancel subscription |
 | `GET` | `/billing/invoices` | Invoice history |
+
+### Service API (Context Directory)
+
+Pods for local (mobile-only) accounts, managed by the Context Directory with `X-Service-Key`. See [Publishing from Mobile Accounts](/guides/local-publishing).
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/service/pods` | Create a free-tier pod (500 MB / 200 items) for an owner |
+| `GET` | `/service/pods/:id` | Pod status and usage |
+| `POST` | `/service/pods/:id/upload-token` | Issue a scoped upload token (returned once) |
+| `PUT` | `/service/pods/:id/well-known` | Write `/.well-known/roadbeat-publisher.json` |
+| `POST` | `/service/pods/:id/suspend` | Suspend the pod and revoke all upload tokens |
+| `POST` | `/service/pods/:id/resume` | Resume a suspended pod |
+| `DELETE` | `/service/pods/:id` | Delete the pod and its files |
+
+### Pod Files
+
+File uploads with a scoped upload token (`Bearer rb_pod_…`). The raw request body is the file (max. 25 MB); CORS is open to any origin.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `PUT` | `/pod-files/:podId/*path` | Create or replace a file, e.g. `content/{type}/{slug}/index.json` |
+| `DELETE` | `/pod-files/:podId/*path` | Delete a file |
 
 ### Health
 
@@ -123,7 +149,7 @@ All errors follow a consistent format:
 | `403` | Forbidden — insufficient permissions |
 | `404` | Not Found — resource does not exist or belongs to another user |
 | `409` | Conflict — resource already exists (e.g., duplicate subdomain) |
-| `413` | Payload Too Large — file exceeds size limit or storage quota reached |
+| `413` | Payload Too Large — file exceeds size limit, storage quota or item limit reached |
 | `429` | Too Many Requests — rate limit exceeded |
 | `500` | Internal Server Error |
 

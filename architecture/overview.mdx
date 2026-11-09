@@ -35,7 +35,7 @@ Core library for generating static Content Pod bundles from structured content d
 |---------|---------------|
 | `SigningService` | Ed25519 key pair generation, content signing, signature verification (JCS canonical JSON) |
 | `ChecksumService` | SHA-256 checksums for files, bundles, and manifests with verification |
-| `TemplateEngine` | Handlebars rendering with helpers (`formatDate`, `truncate`, `assetUrl`, `localizedField`, etc.) |
+| `TemplateEngine` | Handlebars rendering with helpers (`formatDate`, `truncate`, `assetUrl`, `localizedField`, `localized`, `formatLocation`, `jsonLd`, etc.); resolves localized fields to the page language |
 | `BundleGenerator` | Generates complete bundles (index.json, index.html, embed.html, assets/) with SEO metadata |
 | `ManifestGenerator` | Creates and maintains pod `manifest.json` with statistics, content index, and signatures |
 | `PodPublisher` | Orchestrates the full publish pipeline with atomic publishing and error recovery |
@@ -114,6 +114,8 @@ Managed hosting service for `*.pods.roadbeat.net`. Built with NestJS, port **340
 - Billing via Stripe (subscriptions, usage-based overage, invoices)
 - Global JWT authentication guard
 - Rate limiting and security headers middleware
+- **Service API** for the Context Directory (`X-Service-Key`): free-tier pods for local (mobile-only) accounts, upload tokens, `.well-known` publisher document, suspend/resume/delete — see [Publishing from Mobile Accounts](/guides/local-publishing)
+- **Pod Files API** with scoped upload tokens (`rb_pod_…`): raw-body file uploads (25 MB), quota and item limit, path-traversal and dot-path protection, open CORS
 
 ### Cloud Provisioner (`apps/cloud-provisioner`)
 
@@ -142,5 +144,6 @@ Management dashboard built with Angular 19, port **3401**.
 | Pod Hosting API | 3400 | Managed hosting REST API |
 | Pod Dashboard | 3401 | Angular management UI |
 | Cloud Provisioner API | 3402 | Infrastructure provisioning REST API |
+| Static pod server (dev) | 3403 | `pnpm serve:static-pod` — serves `dev-pods/static`, including `.well-known` |
 | PostgreSQL | 5432 | Database (via Docker) |
 | Redis | 6379 | Caching (via Docker) |

@@ -50,9 +50,62 @@ description: Solutions for common Content Pod errors and issues.
   </Expandable>
 </ExpandableGroup>
 
+## Upload Token & Service API Errors
+
+These errors come from the [Pod Files API and the Service API](/guides/local-publishing) used for pods of local (mobile-only) accounts.
+
+<ExpandableGroup>
+  <Expandable title="401 Invalid or expired upload token" default-open="false">
+    **Cause:** The `rb_pod_…` token is unknown, expired (30 days by default), revoked, or belongs to a different pod.
+
+    **Solution:**
+    - Check that the `{podId}` in the URL is the pod the token was issued for
+    - Request a new upload token through the Context Directory — tokens are revoked when a new one is issued with `revokeOthers`, when the key is rotated on a new device, and when the pod is suspended
+  </Expandable>
+
+  <Expandable title="403 Pod is suspended" default-open="false">
+    **Cause:** The account's deletion is scheduled, so the pod was suspended and all uploads are refused.
+
+    **Solution:** Cancel the account deletion. The pod becomes active again; request a new upload token afterwards — the old ones stay revoked.
+  </Expandable>
+
+  <Expandable title="403 Reserved path" default-open="false">
+    **Cause:** A path segment starts with a dot (e.g. `.well-known/…` or `.htaccess`). Dot-paths are reserved for the platform.
+
+    **Solution:** Upload content under `content/{type}/{slug}/…` or `media/…`. The `.well-known/roadbeat-publisher.json` document is written by the Context Directory, never by the app.
+  </Expandable>
+
+  <Expandable title="400 Invalid file path" default-open="false">
+    **Cause:** The path contains characters other than `A–Z a–z 0–9 . _ - /`, is longer than 300 characters, or has `..`, `.` or empty segments (e.g. `content//news`).
+
+    **Solution:** Use lowercase slugs with hyphens, e.g. `content/recipe/apple-pie/index.json`.
+  </Expandable>
+
+  <Expandable title="413 Item limit reached / Storage quota exceeded" default-open="false">
+    **Cause:** The free tier for mobile accounts allows 200 content items and 500 MB. Each file is also limited to 25 MB.
+
+    **Solution:**
+    - Unpublish items you no longer need — deleting an item's `index.json` frees an item slot
+    - Replacing an existing item does not count as a new item
+    - Compress or resize media before upload
+  </Expandable>
+
+  <Expandable title="401 Service access is not configured" default-open="false">
+    **Cause:** `POD_HOSTING_SERVICE_KEY` is not set on the Pod Hosting server, or it is shorter than 16 characters. The Service API fails closed.
+
+    **Solution:** Set the same key (at least 16 characters) on Pod Hosting and on the Context Directory, then restart both services. A mismatch returns `401 Invalid service key`.
+  </Expandable>
+</ExpandableGroup>
+
 ## Content Generation Errors
 
 <ExpandableGroup>
+  <Expandable title="Page title or description shows [object Object]" default-open="false">
+    **Cause:** Pods generated before the v1.2.1 release (2026-11-08) printed localized fields (`{ "en": "…", "de": "…" }`) and location objects as text, which produced `[object Object]` in titles, meta tags, page bodies and `manifest.json`.
+
+    **Solution:** Update `@roadbeat/content-pod-generator` to a build that includes the v1.2.1 fix and republish the affected items. Custom templates should use the `localized` and `formatLocation` helpers — see [Localized Fields and Locations](/architecture/pod-structure#localized-fields-and-locations).
+  </Expandable>
+
   <Expandable title="Template not found for content type" default-open="false">
     **Cause:** No Handlebars template registered for the content type.
 

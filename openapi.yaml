@@ -9,6 +9,8 @@ paths:
           description: ''
       tags:
         - Pods
+      security:
+        - bearer: []
     get:
       operationId: PodsController_listPods
       parameters: []
@@ -17,6 +19,8 @@ paths:
           description: ''
       tags:
         - Pods
+      security:
+        - bearer: []
   /api/v1/pods/{id}:
     get:
       operationId: PodsController_getPod
@@ -26,6 +30,8 @@ paths:
           description: ''
       tags:
         - Pods
+      security:
+        - bearer: []
     put:
       operationId: PodsController_updatePod
       parameters: []
@@ -34,6 +40,8 @@ paths:
           description: ''
       tags:
         - Pods
+      security:
+        - bearer: []
     delete:
       operationId: PodsController_deletePod
       parameters: []
@@ -42,6 +50,8 @@ paths:
           description: ''
       tags:
         - Pods
+      security:
+        - bearer: []
   /api/v1/pods/{id}/storage:
     get:
       operationId: PodsController_getStorage
@@ -51,6 +61,8 @@ paths:
           description: ''
       tags:
         - Pods
+      security:
+        - bearer: []
   /api/v1/pods/{id}/content:
     get:
       operationId: PodsController_listContent
@@ -60,6 +72,8 @@ paths:
           description: ''
       tags:
         - Pods
+      security:
+        - bearer: []
   /api/v1/pods/{id}/content/{contentId}:
     delete:
       operationId: PodsController_deleteContent
@@ -69,6 +83,8 @@ paths:
           description: ''
       tags:
         - Pods
+      security:
+        - bearer: []
   /api/v1/pods/{id}/custom-domain:
     post:
       operationId: PodsController_setupCustomDomain
@@ -78,6 +94,8 @@ paths:
           description: ''
       tags:
         - Pods
+      security:
+        - bearer: []
     delete:
       operationId: PodsController_removeCustomDomain
       parameters: []
@@ -86,6 +104,8 @@ paths:
           description: ''
       tags:
         - Pods
+      security:
+        - bearer: []
   /api/v1/pods/{id}/custom-domain/verify:
     post:
       operationId: PodsController_verifyCustomDomain
@@ -95,6 +115,8 @@ paths:
           description: ''
       tags:
         - Pods
+      security:
+        - bearer: []
   /api/v1/billing/subscription:
     get:
       operationId: BillingController_getSubscription
@@ -104,6 +126,8 @@ paths:
           description: ''
       tags:
         - Billing
+      security:
+        - bearer: []
   /api/v1/billing/subscribe:
     post:
       operationId: BillingController_subscribe
@@ -113,6 +137,8 @@ paths:
           description: ''
       tags:
         - Billing
+      security:
+        - bearer: []
   /api/v1/billing/cancel:
     post:
       operationId: BillingController_cancel
@@ -122,6 +148,8 @@ paths:
           description: ''
       tags:
         - Billing
+      security:
+        - bearer: []
   /api/v1/billing/invoices:
     get:
       operationId: BillingController_getInvoices
@@ -131,6 +159,295 @@ paths:
           description: ''
       tags:
         - Billing
+      security:
+        - bearer: []
+  /api/v1/service/pods:
+    post:
+      operationId: ServicePodsController_create
+      summary: Create a free-tier pod for a Context Directory user
+      description: >-
+        Service-to-service pod creation for local (mobile-only) accounts. The
+        pod gets the free tier of Studio's free pod: 500 MB storage and 200
+        content items. Its owner is `cd:{ownerRef}`. Each owner can have one
+        pod that is not deleted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateServicePodRequest'
+            example:
+              ownerRef: 3f2b9c1e-7d4a-4f0e-9b8a-2c6d1e5f7a90
+              name: Recipes by Anna
+      responses:
+        '201':
+          description: Pod created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServicePod'
+        '400':
+          description: '`ownerRef` and `name` are required (`ownerRef`: 8–64 letters, digits or hyphens).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid `X-Service-Key`, or service access is not configured.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: The owner already has a pod (response carries its `podId`), or the subdomain is taken.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Service
+      security:
+        - serviceKey: []
+  /api/v1/service/pods/{id}:
+    get:
+      operationId: ServicePodsController_get
+      summary: Pod status and usage
+      parameters:
+        - $ref: '#/components/parameters/ServicePodId'
+      responses:
+        '200':
+          description: The pod.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServicePod'
+        '401':
+          description: Missing or invalid `X-Service-Key`.
+        '404':
+          description: No service-provisioned pod with this id (or it is deleted).
+      tags:
+        - Service
+      security:
+        - serviceKey: []
+    delete:
+      operationId: ServicePodsController_remove
+      summary: Delete the pod and its files (account purge)
+      description: >-
+        Revokes all upload tokens, removes all of the pod's files and sets its
+        status to `deleted`.
+      parameters:
+        - $ref: '#/components/parameters/ServicePodId'
+      responses:
+        '204':
+          description: Pod deleted.
+        '401':
+          description: Missing or invalid `X-Service-Key`.
+        '404':
+          description: No service-provisioned pod with this id (or it is already deleted).
+      tags:
+        - Service
+      security:
+        - serviceKey: []
+  /api/v1/service/pods/{id}/upload-token:
+    post:
+      operationId: ServicePodsController_uploadToken
+      summary: Issue a scoped upload token for the pod
+      description: >-
+        Returns a new `rb_pod_…` upload token once; only its SHA-256 hash is
+        stored. The token is valid for `/api/v1/pod-files/{podId}/…` of this pod
+        only.
+      parameters:
+        - $ref: '#/components/parameters/ServicePodId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadTokenRequest'
+            example:
+              ttlDays: 30
+              revokeOthers: true
+      responses:
+        '201':
+          description: Token issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadToken'
+        '401':
+          description: Missing or invalid `X-Service-Key`.
+        '404':
+          description: No service-provisioned pod with this id.
+      tags:
+        - Service
+      security:
+        - serviceKey: []
+  /api/v1/service/pods/{id}/well-known:
+    put:
+      operationId: ServicePodsController_wellKnown
+      summary: Write /.well-known/roadbeat-publisher.json
+      description: >-
+        Writes the publisher verification document to the pod. Discovery Nodes
+        fetch it to verify a publisher without a domain (pod-host
+        verification) and apply its `status` and `publicKey` via pod-sync.
+      parameters:
+        - $ref: '#/components/parameters/ServicePodId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WellKnownRequest'
+            example:
+              publicKey: MCowBQYDK2VwAyEA…
+              status: active
+              publishers:
+                - nodeUrl: https://discovery.roadbeat.net
+                  publisherId: pub_7f3a…
+      responses:
+        '200':
+          description: Document written.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+                    description: Public URL of the document.
+                    example: https://p-4f9a2c7e1b.pods.roadbeat.net/.well-known/roadbeat-publisher.json
+        '400':
+          description: '`publicKey` is required.'
+        '401':
+          description: Missing or invalid `X-Service-Key`.
+        '404':
+          description: No service-provisioned pod with this id.
+      tags:
+        - Service
+      security:
+        - serviceKey: []
+  /api/v1/service/pods/{id}/suspend:
+    post:
+      operationId: ServicePodsController_suspend
+      summary: Suspend the pod (account deletion scheduled)
+      description: Revokes all upload tokens and sets the status to `suspended`; uploads are refused until the pod is resumed.
+      parameters:
+        - $ref: '#/components/parameters/ServicePodId'
+      responses:
+        '201':
+          description: Pod suspended.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServicePod'
+        '401':
+          description: Missing or invalid `X-Service-Key`.
+        '404':
+          description: No service-provisioned pod with this id.
+      tags:
+        - Service
+      security:
+        - serviceKey: []
+  /api/v1/service/pods/{id}/resume:
+    post:
+      operationId: ServicePodsController_resume
+      summary: Resume a suspended pod (account deletion cancelled)
+      description: Sets the status back to `active`. Upload tokens revoked on suspend stay revoked — issue a new one.
+      parameters:
+        - $ref: '#/components/parameters/ServicePodId'
+      responses:
+        '201':
+          description: Pod active again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServicePod'
+        '401':
+          description: Missing or invalid `X-Service-Key`.
+        '404':
+          description: No service-provisioned pod with this id.
+      tags:
+        - Service
+      security:
+        - serviceKey: []
+  /api/v1/pod-files/{podId}/{path}:
+    put:
+      operationId: PodFilesController_put
+      summary: Upload (create or replace) a file in the pod
+      description: >-
+        The raw request body is the file (max. 25 MB). Uploading
+        `content/{type}/{slug}/index.json` registers a content item (must be
+        valid JSON; counts against the item limit when new). Storage quota and
+        item limit are enforced. Paths whose segments start with a dot are
+        reserved for the platform. CORS is open to any origin — the endpoint
+        is authenticated by the upload token only.
+      parameters:
+        - $ref: '#/components/parameters/PodId'
+        - $ref: '#/components/parameters/FilePath'
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+          application/json:
+            schema:
+              type: string
+              format: binary
+          text/html:
+            schema:
+              type: string
+              format: binary
+          image/*:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: File stored.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PodFile'
+        '400':
+          description: Invalid file path, missing raw body, or an `index.json` that is not valid JSON.
+        '401':
+          description: Missing, unknown, expired or revoked upload token, or a token of another pod.
+        '403':
+          description: The pod is not active (`Pod is suspended`), or the path is reserved (dot-path).
+        '413':
+          description: File larger than 25 MB, storage quota exceeded, or item limit reached.
+      tags:
+        - Pod Files
+      security:
+        - uploadToken: []
+    delete:
+      operationId: PodFilesController_remove
+      summary: Delete a file from the pod
+      description: >-
+        Deleting `content/{type}/{slug}/index.json` also removes the content
+        item from the pod's content list. The freed bytes are subtracted from
+        the pod's usage.
+      parameters:
+        - $ref: '#/components/parameters/PodId'
+        - $ref: '#/components/parameters/FilePath'
+      responses:
+        '204':
+          description: File deleted.
+        '400':
+          description: Invalid file path.
+        '401':
+          description: Missing, unknown, expired or revoked upload token, or a token of another pod.
+        '403':
+          description: The pod is not active, or the path is reserved (dot-path).
+        '404':
+          description: File not found.
+      tags:
+        - Pod Files
+      security:
+        - uploadToken: []
   /health:
     get:
       operationId: HealthController_check
@@ -140,6 +457,7 @@ paths:
           description: ''
       tags:
         - Health
+      security: []
   /health/liveness:
     get:
       operationId: HealthController_liveness
@@ -149,12 +467,26 @@ paths:
           description: ''
       tags:
         - Health
+      security: []
 info:
   title: Content Pod Hosting API
-  description: Managed pod hosting — custom domains, storage quotas, CDN, billing
-  version: 0.1.0
+  description: >-
+    Managed pod hosting — custom domains, storage quotas, CDN, billing; service
+    API for pods provisioned by the Context Directory and token-authenticated
+    file uploads.
+  version: 0.2.0
   contact: {}
-tags: []
+tags:
+  - name: Pods
+    description: Pod lifecycle, content, and custom domains (user JWT).
+  - name: Billing
+    description: Subscriptions and invoices (user JWT).
+  - name: Service
+    description: Service-to-service pod management for the Context Directory (`X-Service-Key`).
+  - name: Pod Files
+    description: File uploads into a pod with a scoped upload token (`Bearer rb_pod_…`).
+  - name: Health
+    description: Health and liveness probes (public).
 servers:
   - url: https://pods.roadbeat.net
     description: Production
@@ -166,4 +498,167 @@ components:
       scheme: bearer
       bearerFormat: JWT
       type: http
-  schemas: {}
+    serviceKey:
+      type: apiKey
+      in: header
+      name: X-Service-Key
+      description: >-
+        Shared service key (`POD_HOSTING_SERVICE_KEY`, at least 16 characters).
+        Fails closed — without a configured key every request is rejected.
+    uploadToken:
+      type: http
+      scheme: bearer
+      bearerFormat: rb_pod_…
+      description: Scoped, expiring, revocable upload token issued via `POST /api/v1/service/pods/{id}/upload-token`.
+  parameters:
+    ServicePodId:
+      name: id
+      in: path
+      required: true
+      description: Id of a pod provisioned through the service API.
+      schema:
+        type: string
+        format: uuid
+    PodId:
+      name: podId
+      in: path
+      required: true
+      description: Id of the pod the upload token belongs to.
+      schema:
+        type: string
+        format: uuid
+    FilePath:
+      name: path
+      in: path
+      required: true
+      description: >-
+        File path inside the pod, may contain slashes (e.g.
+        `content/recipe/apple-pie/index.json`). Allowed characters:
+        `A–Z a–z 0–9 . _ - /`, at most 300 characters; no `..`, `.` or empty
+        segments; no segment may start with a dot.
+      schema:
+        type: string
+      example: content/recipe/apple-pie/index.json
+  schemas:
+    Error:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+          example: 409
+        message:
+          type: string
+          example: Pod already exists
+        podId:
+          type: string
+          description: Only on `409 Pod already exists` — the id of the existing pod.
+    CreateServicePodRequest:
+      type: object
+      required:
+        - ownerRef
+        - name
+      properties:
+        ownerRef:
+          type: string
+          pattern: '^[A-Za-z0-9-]{8,64}$'
+          description: The owner in the calling service (Context Directory user id).
+        name:
+          type: string
+          maxLength: 200
+          description: Pod name.
+        subdomain:
+          type: string
+          description: Optional wish (3–63 lowercase letters, digits, hyphens); otherwise `p-<10 hex>` is generated.
+    ServicePod:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        subdomain:
+          type: string
+          example: p-4f9a2c7e1b
+        baseUrl:
+          type: string
+          format: uri
+          example: https://p-4f9a2c7e1b.pods.roadbeat.net
+        status:
+          type: string
+          enum:
+            - active
+            - suspended
+            - deleted
+        quotaBytes:
+          type: integer
+          example: 524288000
+        usedBytes:
+          type: integer
+          example: 0
+        maxItems:
+          type: integer
+          nullable: true
+          example: 200
+    UploadTokenRequest:
+      type: object
+      properties:
+        ttlDays:
+          type: integer
+          minimum: 1
+          maximum: 90
+          default: 30
+          description: Token lifetime in days (clamped to 1–90).
+        revokeOthers:
+          type: boolean
+          default: false
+          description: Revoke all earlier upload tokens of the pod first.
+    UploadToken:
+      type: object
+      properties:
+        token:
+          type: string
+          example: rb_pod_Jx3k9…
+          description: Returned once; store it securely on the device.
+        expiresAt:
+          type: string
+          format: date-time
+    WellKnownRequest:
+      type: object
+      required:
+        - publicKey
+      properties:
+        publicKey:
+          type: string
+          description: The publisher's current Ed25519 public key.
+        status:
+          type: string
+          enum:
+            - active
+            - suspended
+            - deleted
+          default: active
+          description: The owner's publishing status; other values are written as `active`.
+        publishers:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublisherRegistration'
+    PublisherRegistration:
+      type: object
+      properties:
+        nodeUrl:
+          type: string
+          format: uri
+        publisherId:
+          type: string
+    PodFile:
+      type: object
+      properties:
+        path:
+          type: string
+          example: content/recipe/apple-pie/index.json
+        url:
+          type: string
+          format: uri
+          example: https://p-4f9a2c7e1b.pods.roadbeat.net/content/recipe/apple-pie/index.json
+        bytes:
+          type: integer
+          example: 2817
