@@ -3,6 +3,57 @@ title: Changelog
 description: Release notes and updates for the Content Pod ecosystem.
 ---
 
+<Update label="2026-11-20" description="v1.4.0" tags={["feature", "security"]}>
+  ## Storage — Streamed Uploads and Own Storage Hooks
+
+  `@roadbeat/content-pod-storage` now handles large file sets such as reader bundles and storage that users configure themselves (Studio's own storage for pods). See [Storage Providers](/guides/storage-providers).
+
+  **Streamed `uploadFiles`**
+
+  - New optional `uploadFiles(files: StorageLocalFile[])` on the `StorageProvider` interface — every built-in provider has it
+  - Files are streamed from disk, never buffered whole: S3/Hetzner/Contabo use multipart uploads with `concurrency` files at a time, SFTP uploads over one connection (`fastPut`, every directory created once), local copies the files
+  - Per-file `contentType` and `cacheControl`, otherwise inferred from the path
+
+  **Hooks for user-supplied endpoints**
+
+  - `S3Config.requestHandler` — pass agents with a checked DNS lookup so an endpoint cannot reach private networks
+  - `SftpConfig.hostVerifier` — return `false` to refuse a host key (host key pinning); `SftpConfig.readyTimeout` (default 20 s)
+
+  **MIME types** for bundle files: `mjs`, `wasm`, `webmanifest`, `map`, `woff`/`woff2`/`ttf`/`otf`, `m4a`/`aac`/`opus`/`wav`/`flac`, `m4v`, `vtt`, `ico`, `csv`, `md`
+
+  Verified against MinIO (12 MB multipart upload, `Content-Type` stored) and an SFTP server (host key refusal enforced).
+
+  <Callout kind="info">
+    In roadbeat Studio, organizations can now keep their pod and its reader bundles on their own S3-compatible bucket or SFTP server — see [Own Storage for Studio Pods](/guides/storage-providers#own-storage-for-studio-pods).
+  </Callout>
+</Update>
+
+<Update label="2026-11-19" description="v1.3.0" tags={["feature", "security"]}>
+  ## Digital Editions and Reader Bundles
+
+  Content read in an external reader — e.g. an interactive comic in the PanelWave player — is now supported on Content Pods. See [Reader Bundles & Digital Editions](/guides/reader-bundles).
+
+  **Read link for digital editions** (generator, layout export)
+
+  - Items with `digital_edition.reader.reader_url` get a **Read in {reader}** button on their `index.html`; `embed.html` links to the reader instead of the pod page
+  - Layout export renders `embed` regions (registry layouts for `comic-release` / `comic-series`) as the same plain link with the region's localized label
+  - Only `http`/`https` addresses without credentials are linked; pod pages never frame a reader — roadbeat clients frame registered readers themselves
+  - New template helpers `readerLink` and `readerUrlOr`
+
+  **Bundle origin for signed reader bundles**
+
+  - Pods serve signed reader bundles (imported by Studio via `POST /api/v1/integration/pod/bundles`) from an origin of their own: `https://{subdomain}--b.pods.roadbeat.net/{bundleId}/` — a reader's script never shares an origin with the pod's pages
+  - `bundleResponseHeaders` and `parseFrameAncestors` in `@roadbeat/production-readiness`: CSP `frame-ancestors` for roadbeat clients instead of `X-Frame-Options`, open CORS with `Range`, MIME types for webp/avif/m4a/woff2/mp4/…, `no-cache` for HTML/JSON, one hour for media
+  - Dot paths (staging folders during a bundle switch) are never served
+  - `pnpm serve:bundles` — dev bundle origin on port **3405** over `dev-pods/bundles/{orgSlug}/{bundleId}/`
+  - Cloud-init: static and dynamic pod servers get a Caddy site for the bundle origin (root `/var/www/bundles`, host derived from `*.pods.roadbeat.net` or set with `bundleDomain`)
+  - Pod manifest type: optional `bundles[]` (`PodBundleEntry`) with reader, URL, size, file count, digest and signing key reference — see [Pod Structure](/architecture/pod-structure#manifest-fields)
+
+  <Callout kind="tip">
+    Serving a pod with your own web server? Give bundles a host of their own and send the same headers with `bundleResponseHeaders` — the pod's own site keeps `X-Frame-Options: SAMEORIGIN`.
+  </Callout>
+</Update>
+
 <Update label="2026-11-08" description="v1.2.1" tags={["bugfix"]}>
   ## Generator — No More `[object Object]` in Pod Pages
 

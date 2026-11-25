@@ -170,3 +170,70 @@ These errors come from the [Pod Files API and the Service API](/guides/local-pub
     - Managed pods handle CORS automatically
   </Expandable>
 </ExpandableGroup>
+
+## Reader Bundle & Own Storage Errors
+
+These errors come from roadbeat Studio when it imports [reader bundles](/guides/reader-bundles) or publishes to [own storage](/guides/storage-providers#own-storage-for-studio-pods).
+
+<ExpandableGroup>
+  <Expandable title="413 POD_BUNDLE_TOO_LARGE" default-open="false">
+    **Cause:** The package's listed bytes plus its manifest exceed the pod's free space within its tier. The response carries `neededBytes` and `freeBytes`.
+
+    **Solution:**
+    - Check the space up front: `GET /api/v1/integration/publishing/targets` → `pod.bundles.freeBytes`
+    - Remove bundles or content that are no longer needed, or move the pod to a higher tier
+  </Expandable>
+
+  <Expandable title="409 BUNDLE_IMPORT_RUNNING" default-open="false">
+    **Cause:** An import for the same item is still running.
+
+    **Solution:** Wait for `pod.bundle.ready` or `pod.bundle.failed`, or poll `GET /api/v1/integration/pod/bundles/{bundleId}`, then retry. Imports interrupted by a restart are marked failed at start-up.
+  </Expandable>
+
+  <Expandable title="Bundle import refused — digest or signature" default-open="false">
+    **Cause:** `package-manifest.json` does not hash to the `digest` you sent, the package is unsigned, or its Ed25519 signature does not verify against the reader's keys from the Schema Registry entry.
+
+    **Solution:**
+    - Send the SHA-256 of exactly the `package-manifest.json` that `sourceUrl` serves
+    - Sign the package with a key listed in the reader's key document (`frame.bundle_signature_keys`) — Content Pods serve signed bundles only
+  </Expandable>
+
+  <Expandable title="Bundle import failed in the background" default-open="false">
+    **Cause:** A file was larger than listed, its SHA-256 did not match, or the source could not be fetched (https only, no private addresses, same-origin redirects only).
+
+    **Solution:** Check `error` (`code` and `message`) in `GET /api/v1/integration/pod/bundles/{bundleId}`. The live bundle stays untouched — fix the package or the source and import again. For local development, `WEBHOOK_ALLOW_PRIVATE_TARGETS=true` allows private and `http` sources.
+  </Expandable>
+
+  <Expandable title="Reader bundle does not show in the client frame" default-open="false">
+    **Cause:** The bundle origin sends `X-Frame-Options`, lacks `Content-Security-Policy: frame-ancestors`, or the host does not match the client's `POD_BUNDLE_DOMAIN_PATTERNS`.
+
+    **Solution:**
+    - Serve bundles from a host of their own with `bundleResponseHeaders` (or the provisioned Caddy site) — never from the pod's own host
+    - Default pattern: `*--b.pods.roadbeat.net`; in development set `EXTERNAL_READER_DEV_ORIGINS=http://localhost:3405`
+    - Check the reader's registry entry has `frame.allow_pod_bundles: true`
+  </Expandable>
+
+  <Expandable title="POD_STORAGE_NOT_READY" default-open="false">
+    **Cause:** An own storage target exists but has not passed its check (every change resets it to `unchecked`).
+
+    **Solution:** Run `POST /api/v1/manage/content-pod/storage/{role}/check` (or **Check** in Settings → Content Pod → Storage) and fix what it reports. Publishing and bundle imports never fall back to the Studio's disk.
+  </Expandable>
+
+  <Expandable title="Storage check fails for the bundles target" default-open="false">
+    **Cause:** The bundle origin needs a JavaScript MIME type for `.mjs`, `Content-Security-Policy: frame-ancestors`, `https`, and an origin of its own. A plain S3 bucket cannot send a CSP header.
+
+    **Solution:** Put a CDN or web server (e.g. Caddy with the [bundle headers](/guides/reader-bundles#response-headers)) in front of the bucket, on a host different from the pod's pages and the content target. Missing CORS, `Accept-Ranges` or `nosniff` are only warnings.
+  </Expandable>
+
+  <Expandable title="POD_BUNDLE_TARGET_MISSING" default-open="false">
+    **Cause:** The pod is on its own content storage but has no `bundles` target, so it has no bundle origin (`pod.bundles.supported = false`).
+
+    **Solution:** Add and check a `bundles` storage target.
+  </Expandable>
+
+  <Expandable title="SFTP host key refused" default-open="false">
+    **Cause:** The SFTP server's host key no longer matches the key pinned at the first passing check (`hostVerifier` returned `false`).
+
+    **Solution:** Treat it as a possible man-in-the-middle first. The pin stays as long as host and port stay the same; only a new host or port drops it. If the server's key changed legitimately, remove the target and add it again, then re-run the check (a `bundles` target can only be removed while no bundles are served from it).
+  </Expandable>
+</ExpandableGroup>

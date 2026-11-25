@@ -72,4 +72,20 @@ description: Frequently asked questions about storage providers, hosting options
 
     You can also create manual backups via the dashboard or API at any time. See [Backup & Recovery](/help-center/guides/backup-recovery).
   </Expandable>
+
+  <Expandable title="Can my Studio pod live on my own bucket or SFTP server?" default-open="false">
+    Yes. In roadbeat Studio, organization admins can add a storage target under **Settings → Content Pod → Storage**: an S3-compatible bucket (AWS S3, MinIO, Hetzner, Contabo, …) or an SFTP server — one for the pod's content and one for reader bundles.
+
+    - A target is used only after its **check** passed; until then publishing refuses instead of falling back to the Studio's disk
+    - Content targets work for **static** pods only
+    - A bundle target needs an origin of its own with `Content-Security-Policy: frame-ancestors` — a plain bucket needs a CDN or web server in front
+
+    See [Own Storage for Studio Pods](/guides/storage-providers#own-storage-for-studio-pods).
+  </Expandable>
+
+  <Expandable title="Can a pod host an interactive comic or another external reader?" default-open="false">
+    Yes, as a **signed reader bundle** — e.g. a PanelWave channel package. Studio imports it, verifies every file against the package's Ed25519 signature, and the pod serves it from a bundle origin of its own (`https://{subdomain}--b.pods.roadbeat.net/`). Bundles count toward the pod's storage quota. Pods of mobile-only accounts have no bundle import.
+
+    See [Reader Bundles & Digital Editions](/guides/reader-bundles).
+  </Expandable>
 </ExpandableGroup>

@@ -127,6 +127,17 @@ The Dockerfile uses multi-stage builds. You can build each service independently
     cd apps/cloud-provisioner && pnpm start:dev
     ```
   </Step>
+  <Step title="Start the dev pod servers (optional)">
+    ```bash
+    # Static pods from dev-pods/static (port 3403)
+    pnpm serve:static-pod
+
+    # Bundle origin for signed reader bundles from dev-pods/bundles (port 3405)
+    pnpm serve:bundles
+    ```
+
+    The bundle origin stands in for `https://{subdomain}--b.pods.roadbeat.net` and sends the production bundle headers. Point a local Studio at it with `CONTENT_POD_BUNDLES_PATH=../content-pod/dev-pods/bundles` and `POD_BUNDLE_PUBLIC_URL_TEMPLATE=http://localhost:3405/{orgSlug}` — see [Reader Bundles](/guides/reader-bundles#serving-bundles).
+  </Step>
 </Steps>
 
 ## Environment Variables
@@ -147,6 +158,14 @@ The Dockerfile uses multi-stage builds. You can build each service independently
 <Callout kind="alert">
   If you serve pods from `POD_FILES_ROOT` with your own web server, make sure it serves **dotfiles** — Discovery Nodes fetch `/.well-known/roadbeat-publisher.json` to verify publishers, also while a pod is suspended. Uploads cannot create dot-paths, so only platform-written dotfiles exist.
 </Callout>
+
+### Dev Bundle Origin (`serve-bundles.ts`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BUNDLE_POD_PORT` | `3405` | HTTP port |
+| `CONTENT_POD_BUNDLES_PATH` | `dev-pods/bundles` | Bundle root: `{orgSlug}/{bundleId}/…` |
+| `BUNDLE_FRAME_ANCESTORS` | `'self'` and the local Studio (`:4200`), Web Client (`:3601`) and mobile web build (`:4201`), `https://localhost`, `capacitor://localhost` | Origins allowed to frame bundles — comma or space separated; one unsafe token (`;`, `"`, `<`, `>`) and the defaults apply |
 
 ### Cloud Provisioner (`apps/cloud-provisioner`)
 
@@ -173,7 +192,7 @@ For production, the Docker images include:
 
 - **Health checks** — `/health` endpoint polled every 30 seconds
 - **Automatic restart** — `unless-stopped` restart policy
-- **Security middleware** — rate limiting, security headers, input sanitization
+- **Security middleware** — rate limiting, security headers, input sanitization; `bundleResponseHeaders` for a bundle origin (CSP `frame-ancestors` instead of `X-Frame-Options`)
 - **Structured logging** — JSON-formatted logs for aggregation
 
 ### Recommended Production Setup
@@ -207,7 +226,7 @@ The repository includes a GitHub Actions workflow (`.github/workflows/ci.yml`) t
     Code quality checks across all packages.
   </Step>
   <Step title="Test">
-    All 522 tests across 8 packages.
+    All 545 Jest tests across 6 packages and 2 apps.
   </Step>
   <Step title="Build">
     TypeScript compilation for all packages and apps.
@@ -218,12 +237,14 @@ The repository includes a GitHub Actions workflow (`.github/workflows/ci.yml`) t
 
 | Package | Tests |
 |---------|-------|
-| `@roadbeat/content-pod-generator` | 84 |
-| `@roadbeat/content-pod-storage` | 26 |
+| `@roadbeat/content-pod-generator` | 94 |
+| `@roadbeat/content-pod-storage` | 28 |
 | `@roadbeat/dynamic-features` | 101 |
-| `@roadbeat/studio-integration` | 50 |
+| `@roadbeat/studio-integration` | 51 |
 | `@roadbeat/pod-portability` | 44 |
-| `@roadbeat/production-readiness` | 110 |
-| `pod-hosting` | 67 |
-| `cloud-provisioner` | 40 |
-| **Total** | **522** |
+| `@roadbeat/production-readiness` | 113 |
+| `pod-hosting` | 72 |
+| `cloud-provisioner` | 42 |
+| **Total** | **545** |
+
+Counts as of 2026-11-24 (`pnpm test` per package). The Angular `pod-dashboard` runs its Karma tests separately.

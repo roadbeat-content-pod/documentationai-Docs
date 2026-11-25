@@ -3,23 +3,26 @@ title: System Overview
 description: Architecture of the Content Pod monorepo — packages, applications, and how they connect.
 ---
 
-The Content Pod ecosystem is organized as a **pnpm monorepo** with 6 library packages and 3 deployable applications. All packages are written in TypeScript and thoroughly tested (522 tests total).
+The Content Pod ecosystem is organized as a **pnpm monorepo** with 6 library packages and 3 deployable applications. All packages are written in TypeScript and thoroughly tested (545 tests total).
 
 ## Monorepo Structure
 
 ```
 content-pod/
 ├── packages/
-│   ├── content-pod-generator/    # Bundle generation, signing, templates (84 tests)
-│   ├── content-pod-storage/      # Storage adapters: S3, Hetzner, Contabo, SFTP (26 tests)
+│   ├── content-pod-generator/    # Bundle generation, signing, templates (94 tests)
+│   ├── content-pod-storage/      # Storage adapters: S3, Hetzner, Contabo, SFTP (28 tests)
 │   ├── dynamic-features/         # Comments, reactions, stats, newsletter, RSS (101 tests)
-│   ├── studio-integration/       # Studio export bridge, Discovery Node publishing (50 tests)
+│   ├── studio-integration/       # Studio export bridge, Discovery Node publishing (51 tests)
 │   ├── pod-portability/          # Export, import, migration, backup & recovery (44 tests)
-│   └── production-readiness/     # Security, caching, monitoring, alerts (110 tests)
+│   └── production-readiness/     # Security, bundle headers, caching, monitoring (113 tests)
 ├── apps/
-│   ├── pod-hosting/              # Managed hosting service — NestJS (67 tests)
-│   ├── cloud-provisioner/        # Infrastructure provisioning — NestJS (40 tests)
+│   ├── pod-hosting/              # Managed hosting service — NestJS (72 tests)
+│   ├── cloud-provisioner/        # Infrastructure provisioning — NestJS (42 tests)
 │   └── pod-dashboard/            # Management dashboard — Angular 19
+├── dev-pods/                     # Dev pod roots: static/, dynamic/, bundles/
+├── serve-static-pod.ts           # Dev static pod server (port 3403)
+├── serve-bundles.ts              # Dev bundle origin for reader bundles (port 3405)
 ├── Dockerfile                    # Multi-stage: pod-hosting + cloud-provisioner
 ├── docker-compose.yml            # Full stack: 5 services
 └── .github/workflows/ci.yml     # CI: Node 20+22, lint, test, build
@@ -35,23 +38,23 @@ Core library for generating static Content Pod bundles from structured content d
 |---------|---------------|
 | `SigningService` | Ed25519 key pair generation, content signing, signature verification (JCS canonical JSON) |
 | `ChecksumService` | SHA-256 checksums for files, bundles, and manifests with verification |
-| `TemplateEngine` | Handlebars rendering with helpers (`formatDate`, `truncate`, `assetUrl`, `localizedField`, `localized`, `formatLocation`, `jsonLd`, etc.); resolves localized fields to the page language |
+| `TemplateEngine` | Handlebars rendering with helpers (`formatDate`, `truncate`, `assetUrl`, `localizedField`, `localized`, `formatLocation`, `jsonLd`, `readerLink`, `readerUrlOr`, etc.); resolves localized fields to the page language; **Read** link for items with a digital edition |
 | `BundleGenerator` | Generates complete bundles (index.json, index.html, embed.html, assets/) with SEO metadata |
-| `ManifestGenerator` | Creates and maintains pod `manifest.json` with statistics, content index, and signatures |
+| `ManifestGenerator` | Creates and maintains pod `manifest.json` with statistics, content index, and signatures; the manifest type carries optional `bundles[]` (`PodBundleEntry`) for signed reader bundles |
 | `PodPublisher` | Orchestrates the full publish pipeline with atomic publishing and error recovery |
 | `KeyManager` | Key rotation, multiple valid keys, key ID tracking |
 | `ContentVerificationService` | Full integrity verification of pod content against checksums and signatures |
 
 ### `@roadbeat/content-pod-storage`
 
-Pluggable storage providers with a common `StorageProvider` interface.
+Pluggable storage providers with a common `StorageProvider` interface. Every built-in provider has `uploadFiles` — streamed uploads of local files for large sets such as reader bundles.
 
 | Provider | Description |
 |----------|-------------|
-| `S3StorageProvider` | AWS S3 with batch upload, cache-control headers, multipart, retry |
+| `S3StorageProvider` | AWS S3 with batch upload, cache-control headers, multipart, retry; optional `requestHandler` to pin user-supplied endpoints |
 | `HetznerStorageProvider` | Pre-configured for Hetzner Object Storage (fsn1, nbg1, hel1) |
 | `ContaboStorageProvider` | Pre-configured for Contabo (EU, US-central, SIN) |
-| `SftpStorageProvider` | SSH key + password auth, connection pooling |
+| `SftpStorageProvider` | SSH key + password auth, one connection per batch; optional `hostVerifier` (host key pinning) and `readyTimeout` |
 | `LocalStorageProvider` | Filesystem storage for development and testing |
 | `ManagedPodStorageProvider` | Uploads via Pod Hosting API with quota enforcement |
 | `StorageFactory` | Create any provider from a config object |
@@ -78,7 +81,7 @@ Bridges Content Pods with Studio Node and Discovery Nodes.
 |---------|-------------|
 | `ContentPodExportService` | Full bundle generation from Studio content (signed, schema-validated) |
 | `DiscoveryIntegrationService` | Publish/update/remove teasers on Discovery Nodes with pod canonical URLs |
-| `LayoutExportService` | Region-based layout rendering with content-type template fallback |
+| `LayoutExportService` | Region-based layout rendering with content-type template fallback; `embed` regions render a **Read** link for digital editions |
 
 ### `@roadbeat/pod-portability`
 
@@ -97,7 +100,7 @@ Security hardening, performance, and monitoring utilities.
 
 | Category | Exports |
 |----------|---------|
-| **Security** | `RateLimiter`, `InputSanitizer`, `CorsHandler`, `SecurityHeaders` |
+| **Security** | `RateLimiter`, `InputSanitizer`, `CorsHandler`, `SecurityHeaders`, `bundleResponseHeaders`, `parseFrameAncestors`, `BUNDLE_MIME_TYPES`, `ROADBEAT_FRAME_ANCESTORS` (bundle origin) |
 | **Performance** | `CacheManager` (in-memory LRU + TTL) |
 | **Monitoring** | `HealthChecker`, `StructuredLogger`, `AlertManager` |
 
@@ -123,7 +126,7 @@ Automated infrastructure provisioning. Built with NestJS, port **3402**.
 
 - **Hetzner Cloud** — servers, SSH keys, firewalls, volumes, networks, snapshots
 - **Contabo** — OAuth 2.0, servers, secrets, object storage, DNS, private networks
-- Cloud-init templates for Studio Node, static pod, dynamic pod
+- Cloud-init templates for Studio Node, static pod, dynamic pod — pod servers include a Caddy site for the bundle origin (`{subdomain}--b.pods.roadbeat.net`, `/var/www/bundles`)
 - DNS management (Cloudflare + Contabo)
 - Provisioning orchestrator with state machine (`pending → creating → configuring → ready → error`) and rollback
 - Multi-provider failover and cost estimation
@@ -145,5 +148,6 @@ Management dashboard built with Angular 19, port **3401**.
 | Pod Dashboard | 3401 | Angular management UI |
 | Cloud Provisioner API | 3402 | Infrastructure provisioning REST API |
 | Static pod server (dev) | 3403 | `pnpm serve:static-pod` — serves `dev-pods/static`, including `.well-known` |
+| Bundle origin (dev) | 3405 | `pnpm serve:bundles` — serves signed reader bundles from `dev-pods/bundles` with the production bundle headers |
 | PostgreSQL | 5432 | Database (via Docker) |
 | Redis | 6379 | Caching (via Docker) |

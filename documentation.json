@@ -92,6 +92,12 @@
                 "badge": "New"
               },
               {
+                "title": "Reader Bundles & Digital Editions",
+                "path": "guides/reader-bundles",
+                "icon": "package",
+                "badge": "New"
+              },
+              {
                 "title": "ActivityPub Federation",
                 "path": "guides/federation",
                 "icon": "globe"

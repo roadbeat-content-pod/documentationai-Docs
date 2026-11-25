@@ -83,6 +83,7 @@ stateDiagram-v2
     - Caddy web server with automatic SSL
     - Static file serving or Node.js runtime for dynamic features
     - Cloud-init template for pod-specific configuration
+    - A second Caddy site for the pod's **bundle origin** (signed reader bundles) with root `/var/www/bundles` — see below
 
     ```bash
     curl -X POST http://localhost:3402/api/v1/provision/content-pod/server \
@@ -100,6 +101,32 @@ stateDiagram-v2
     ```
   </Tab>
 </Tabs>
+
+### Bundle Origin on Pod Servers
+
+Static and dynamic pod servers serve [reader bundles](/guides/reader-bundles) from a host of their own, so a reader's script never shares an origin with the pod's pages:
+
+| | Pod site | Bundle origin site |
+|---|---|---|
+| Host | `{subdomain}.pods.roadbeat.net` | `{subdomain}--b.pods.roadbeat.net` |
+| Root | `/var/www/pod` | `/var/www/bundles/{bundleId}/…` |
+| Framing | `X-Frame-Options: SAMEORIGIN` | `Content-Security-Policy: frame-ancestors 'self' https://roadbeat.net https://*.roadbeat.net https://localhost capacitor://localhost` |
+
+The bundle site also sends open CORS for `GET`/`HEAD`/`OPTIONS` with `Range`, `nosniff`, explicit MIME types for `m4a`, `woff2`, `webp` and `avif`, `no-cache` for HTML/JSON/webmanifest and one hour for everything else. Paths with a dot segment (staging folders during a bundle switch) answer `404`.
+
+The bundle host is derived from a `*.pods.roadbeat.net` domain. The provisioning API passes only the pod's `domain`, so a server on a **custom domain** gets no bundle site from it. When you generate the cloud-init yourself, set the host explicitly:
+
+```typescript
+import { getCloudInitTemplate } from './cloud/cloud-init.templates.js';
+
+const userData = getCloudInitTemplate('content-pod-dynamic', {
+  domain: 'comics.example.org',
+  bundleDomain: 'bundles.comics.example.org',   // or false for no bundle origin
+  bundleFrameAncestors: ["'self'", 'https://roadbeat.net', 'https://*.roadbeat.net'],
+});
+```
+
+Frame ancestors containing `;`, `"`, whitespace, `<` or `>` are dropped. The bundle host's DNS record must point at the server so Caddy can obtain its certificate.
 
 ## Resource Management
 

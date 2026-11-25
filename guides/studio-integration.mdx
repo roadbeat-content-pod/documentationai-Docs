@@ -148,7 +148,14 @@ Layouts define regions that map to content fields:
 | `metadata-strip` | Author, date, reading time |
 | `tag-list` | Content tags and categories |
 | `image` | Inline image with caption |
+| `embed` | Digital edition read in an external reader (registry layouts of `comic-release` / `comic-series`): a plain **Read** link to `digital_edition.reader.reader_url`, labelled with the region's localized label and followed by ` · {reader name}` — never a frame |
 | `sidebar-layout` | Two-column layout with sidebar |
+
+Region labels may be plain text or localized objects (`{ "en": "Read", "de": "Lesen" }`); they resolve to the content's locale, then `en`, then the first value. An `embed` region renders nothing when the item has no reader URL or the URL is not `http`/`https` without credentials.
+
+## Reader Bundles
+
+Studio can also import a **signed reader bundle** — e.g. a PanelWave channel package with the player and the work's files — into the organization's pod through its Integration API (`POST /api/v1/integration/pod/bundles`). The bundle is verified file by file, served from the pod's own bundle origin (`https://{subdomain}--b.pods.roadbeat.net/{bundleId}/`), and listed in the manifest's `bundles`. See [Reader Bundles & Digital Editions](/guides/reader-bundles).
 
 ## Publishing from Studio UI
 
@@ -162,7 +169,7 @@ When using roadbeat Studio, the export flow is integrated into the CMS:
     Filter by content type, status, locale, and date range. Select individual items or export all.
   </Step>
   <Step title="Choose destination">
-    Select your pod as the export destination — managed hosting, S3 bucket, or SFTP server.
+    Select your pod as the export destination — managed hosting, S3 bucket, or SFTP server. To keep the pod on your own bucket or SFTP server, set up a storage target first — see [Own Storage for Studio Pods](/guides/storage-providers#own-storage-for-studio-pods).
   </Step>
   <Step title="Export">
     Click **Export**. The Studio generates signed bundles, uploads them, updates the manifest, and optionally publishes teasers to Discovery Nodes.

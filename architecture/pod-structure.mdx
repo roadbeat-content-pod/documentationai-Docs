@@ -38,6 +38,10 @@ my-pod/
 
 Content is organized by **content type** and **slug**: `content/{contentType}/{slug}/`.
 
+<Callout kind="info">
+  Signed [reader bundles](/guides/reader-bundles) are **not** part of this tree. They live in a root of their own (`/var/www/bundles`, `dev-pods/bundles/{orgSlug}/`) and are served from the pod's bundle origin `https://{subdomain}--b.pods.roadbeat.net/{bundleId}/`, so a reader's script never shares an origin with the pod's pages. The manifest lists them under `bundles`.
+</Callout>
+
 ## Manifest (`manifest.json`)
 
 The manifest is the central index of the pod. It describes the publisher, pod metadata, content inventory, and integrity information.
@@ -80,6 +84,20 @@ The manifest is the central index of the pod. It describes the publisher, pod me
       "checksum": "sha256:a1b2c3d4..."
     }
   ],
+  "bundles": [
+    {
+      "id": "6f9b2c",
+      "content_id": "c_042",
+      "reader": "panelwave",
+      "url": "https://alice--b.pods.roadbeat.net/6f9b2c/",
+      "path": "6f9b2c/",
+      "bytes": 641230000,
+      "file_count": 812,
+      "digest": "<sha256 of package-manifest.json>",
+      "signature_ref": { "key_id": "pw-2026-11", "keys_url": "https://reader.example.org/.well-known/panelwave-keys.json" },
+      "updated_at": "2026-11-19T19:12:00Z"
+    }
+  ],
   "checksums": {
     "algorithm": "sha256",
     "manifest_checksum": "sha256:e5f6a7b8...",
@@ -119,6 +137,10 @@ The manifest is the central index of the pod. It describes the publisher, pod me
 
 <ParamField body="content_index" param-type="array" required="true">
   Array of content entries with `content_id`, `content_type`, `slug`, `title`, `locale`, timestamps, `size_bytes`, and `checksum`.
+</ParamField>
+
+<ParamField body="bundles" param-type="array" required="false">
+  Signed reader bundles served from the pod's bundle origin (`PodBundleEntry`): `id`, `content_id`, `reader`, `url`, `path`, `bytes`, `file_count`, `digest`, `signature_ref`, `updated_at`. Studio adds and removes them; their bytes count toward the pod's storage. See [Reader Bundles](/guides/reader-bundles#manifest-entry).
 </ParamField>
 
 ## Content Item (`index.json`)
@@ -239,6 +261,12 @@ Custom templates can use the same logic through these Handlebars helpers:
   Use `jsonLd`, not `json`, inside `<script>` blocks — the `json` helper renders a `<pre><code>` block for display.
 </Callout>
 
+### Read Link for Digital Editions
+
+Items read in an external reader — e.g. an interactive comic (`comic-release`, `comic-series`) — carry `digital_edition.reader.reader_url`. Their `index.html` shows a **Read in {reader name}** button above the body (just **Read** without a `name`), and `embed.html` links to the reader instead of the pod page.
+
+Only `http`/`https` addresses without credentials are linked. Pod pages never frame the reader — roadbeat clients frame registered readers themselves. Custom templates use the helpers `readerLink` and `readerUrlOr`; see [Reader Bundles & Digital Editions](/guides/reader-bundles#read-link-on-pod-pages).
+
 ## Publisher Verification (`.well-known/roadbeat-publisher.json`)
 
 Pods provisioned for **local (mobile-only) accounts** carry a verification document at `/.well-known/roadbeat-publisher.json`. Discovery Nodes fetch it to verify a publisher that has no domain of its own (pod-host verification) and to learn the owner's publishing status and current public key.
@@ -295,5 +323,5 @@ A lightweight, self-contained card designed for embedding on external sites via 
 
 - Minimal CSS (no external dependencies)
 - Card layout with thumbnail, title, description, author, date
-- Links back to the full content page
+- Links back to the full content page — or to the external reader when the item has a digital edition (`digital_edition.reader.reader_url`)
 - `X-Frame-Options: ALLOWALL` header to allow embedding

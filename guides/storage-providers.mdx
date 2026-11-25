@@ -1,6 +1,6 @@
 ---
 title: Storage Providers
-description: Configure and use S3, Hetzner, Contabo, SFTP, local, or managed storage for your Content Pod.
+description: Configure and use S3, Hetzner, Contabo, SFTP, local, or managed storage for your Content Pod, including streamed uploads and own storage for Studio pods.
 ---
 
 The `@roadbeat/content-pod-storage` package provides a unified `StorageProvider` interface with adapters for multiple backends. All providers share the same API, making it trivial to switch between them.
@@ -19,24 +19,29 @@ interface StorageProvider {
   exists(path: string): Promise<boolean>;
   list(prefix: string): Promise<string[]>;
   getPublicUrl(path: string): string;
+
+  /** Streamed upload of files on the local disk (optional; every built-in provider has it). */
+  uploadFiles?(files: StorageLocalFile[]): Promise<void>;
 }
 ```
 
 ## Using the StorageFactory
 
-The easiest way to create a storage provider is via `StorageFactory`:
+The easiest way to create a storage provider is via `StorageFactory.create(type, config)`:
 
 ```typescript
 import { StorageFactory } from '@roadbeat/content-pod-storage';
 
-const storage = StorageFactory.create({
-  type: 's3',          // 's3' | 'hetzner' | 'contabo' | 'sftp' | 'local' | 'managed'
+// 's3' | 'hetzner' | 'contabo' | 'sftp' | 'local' | 'managed'
+const storage = StorageFactory.create('hetzner', {
+  region: 'fsn1',
   bucket: 'my-pod',
-  region: 'eu-central-1',
-  accessKeyId: process.env.S3_ACCESS_KEY,
-  secretAccessKey: process.env.S3_SECRET_KEY,
+  accessKeyId: process.env.HETZNER_ACCESS_KEY!,
+  secretAccessKey: process.env.HETZNER_SECRET_KEY!,
 });
 ```
+
+Shorthands exist for development and plain S3: `StorageFactory.createLocal(basePath, publicUrl?)` and `StorageFactory.createS3(config)`.
 
 ## Provider Configuration
 
@@ -45,46 +50,52 @@ const storage = StorageFactory.create({
     Works with any S3-compatible storage: AWS S3, MinIO, Backblaze B2, DigitalOcean Spaces.
 
     ```typescript
-    const storage = StorageFactory.create({
-      type: 's3',
+    const storage = StorageFactory.create('s3', {
       endpoint: 'https://s3.eu-central-1.amazonaws.com',
       region: 'eu-central-1',
       bucket: 'my-content-pod',
-      accessKeyId: process.env.S3_ACCESS_KEY,
-      secretAccessKey: process.env.S3_SECRET_KEY,
+      accessKeyId: process.env.S3_ACCESS_KEY!,
+      secretAccessKey: process.env.S3_SECRET_KEY!,
       publicUrl: 'https://my-content-pod.s3.eu-central-1.amazonaws.com',
+      forcePathStyle: true,      // default: true (MinIO and most S3-compatible services)
+      concurrency: 10,           // parallel uploads in batches (default: 10)
     });
     ```
 
-    **Features:** batch upload, configurable cache-control headers, multipart upload for large files, automatic retry.
+    | Option | Description |
+    |--------|-------------|
+    | `publicUrl` | Public base URL; default `{endpoint}/{bucket}` |
+    | `concurrency` | Parallel uploads for `uploadBundle` and `uploadFiles` |
+    | `requestHandler` | HTTP handler for the S3 client — see [Guarding user-supplied endpoints](/guides/storage-providers#guarding-user-supplied-endpoints) |
+
+    **Features:** batch upload, configurable cache-control headers, multipart upload for large files (`uploadFiles`).
   </Tab>
 
   <Tab title="Hetzner" icon="hard-drive">
     Pre-configured for Hetzner Object Storage with EU regions.
 
     ```typescript
-    const storage = StorageFactory.create({
-      type: 'hetzner',
+    const storage = StorageFactory.create('hetzner', {
       region: 'fsn1',          // fsn1 | nbg1 | hel1
       bucket: 'my-content-pod',
-      accessKeyId: process.env.HETZNER_ACCESS_KEY,
-      secretAccessKey: process.env.HETZNER_SECRET_KEY,
+      accessKeyId: process.env.HETZNER_ACCESS_KEY!,
+      secretAccessKey: process.env.HETZNER_SECRET_KEY!,
     });
     ```
 
-    **Regions:** `fsn1` (Falkenstein), `nbg1` (Nuremberg), `hel1` (Helsinki).
+    **Regions:** `fsn1` (Falkenstein), `nbg1` (Nuremberg), `hel1` (Helsinki). Public URL default: `https://{bucket}.{region}.your-objectstorage.com`.
   </Tab>
 
   <Tab title="Contabo" icon="hard-drive">
     Pre-configured for Contabo Object Storage.
 
     ```typescript
-    const storage = StorageFactory.create({
-      type: 'contabo',
-      region: 'EU',            // EU | US-central | SIN
+    const storage = StorageFactory.create('contabo', {
+      s3Url: 'https://eu2.contabostorage.com',   // from the Object Storage API
+      region: 'EU',                               // EU | US-central | SIN
       bucket: 'my-content-pod',
-      accessKeyId: process.env.CONTABO_ACCESS_KEY,
-      secretAccessKey: process.env.CONTABO_SECRET_KEY,
+      accessKeyId: process.env.CONTABO_ACCESS_KEY!,
+      secretAccessKey: process.env.CONTABO_SECRET_KEY!,
     });
     ```
 
@@ -95,28 +106,34 @@ const storage = StorageFactory.create({
     Upload via SSH to any server. Supports key-based and password authentication.
 
     ```typescript
-    const storage = StorageFactory.create({
-      type: 'sftp',
+    import { readFileSync } from 'node:fs';
+
+    const storage = StorageFactory.create('sftp', {
       host: 'myserver.example.com',
       port: 22,
       username: 'content',
-      privateKeyPath: '/secrets/sftp_key',    // or use password
-      remotePath: '/var/www/content-pod',
+      privateKey: readFileSync('/secrets/sftp_key'),   // or: password
+      basePath: '/var/www/content-pod',
       publicUrl: 'https://content.example.com',
+      readyTimeout: 20_000,                            // SSH handshake timeout in ms (default: 20000)
+      hostVerifier: (key) => isPinnedHostKey(key),     // optional: return false to refuse the host key
     });
     ```
 
-    **Features:** SSH key + password auth, connection pooling, automatic directory creation.
+    | Option | Description |
+    |--------|-------------|
+    | `basePath` | Remote base directory (default `/`) |
+    | `readyTimeout` | Milliseconds to wait for the SSH handshake (default `20000`) |
+    | `hostVerifier` | Called with the server's host key; return `false` to refuse the connection |
+
+    **Features:** SSH key + password auth, automatic directory creation, `uploadFiles` over a single connection.
   </Tab>
 
   <Tab title="Local" icon="folder">
     Filesystem storage for development and testing.
 
     ```typescript
-    const storage = StorageFactory.create({
-      type: 'local',
-      basePath: './output/my-pod',
-    });
+    const storage = StorageFactory.createLocal('./output/my-pod', 'http://localhost:3403/my-pod');
     ```
   </Tab>
 
@@ -124,25 +141,73 @@ const storage = StorageFactory.create({
     Upload directly to the Pod Hosting API with quota enforcement.
 
     ```typescript
-    const storage = StorageFactory.create({
-      type: 'managed',
-      apiUrl: 'https://pods.roadbeat.net/api/v1',
+    const storage = StorageFactory.create('managed', {
+      apiBaseUrl: 'https://pods.roadbeat.net/api/v1',
       podId: 'pod_xyz789',
-      authToken: process.env.POD_AUTH_TOKEN,
+      authToken: process.env.POD_AUTH_TOKEN!,
+      subdomain: 'travel-blog',
     });
     ```
   </Tab>
 </Tabs>
 
+## Streamed Uploads (`uploadFiles`)
+
+`uploadBundle` takes file contents in memory. For large sets of files on the local disk — such as [reader bundles](/guides/reader-bundles) with video, audio and fonts — use `uploadFiles`: every file is **streamed** from disk and never read into memory as a whole.
+
+```typescript
+import type { StorageLocalFile } from '@roadbeat/content-pod-storage';
+
+const files: StorageLocalFile[] = [
+  { path: '6f9b2c/index.html', localPath: '/tmp/bundle/index.html' },
+  { path: '6f9b2c/media/episode-1.mp4', localPath: '/tmp/bundle/media/episode-1.mp4' },
+  {
+    path: '6f9b2c/player.mjs',
+    localPath: '/tmp/bundle/player.mjs',
+    contentType: 'text/javascript',           // optional — inferred from the extension
+    cacheControl: 'public, max-age=3600',     // optional — inferred from the path
+  },
+];
+
+await storage.uploadFiles?.(files);
+```
+
+| Provider | How `uploadFiles` works |
+|----------|-------------------------|
+| S3, Hetzner, Contabo | Multipart uploads (`@aws-sdk/lib-storage`), `concurrency` files at a time, `Content-Type` and `Cache-Control` stored per object |
+| SFTP | One connection for all files; every directory is created once, then each file is sent with `fastPut` |
+| Local | Files are copied into `basePath` |
+
+`uploadFiles` is optional in the interface so third-party providers keep compiling — check for it before calling.
+
+## Content Types
+
+`inferContentType(path)` sets the MIME type from the file extension. Besides the usual web formats (`json`, `html`, `css`, `js`, images, `mp4`, `webm`, `mp3`, `ogg`, `pdf`) it covers the files reader bundles ship with:
+
+| Extensions | Content-Type |
+|------------|--------------|
+| `mjs` | `text/javascript` |
+| `wasm` | `application/wasm` |
+| `webmanifest` | `application/manifest+json` |
+| `map` | `application/json` |
+| `woff`, `woff2`, `ttf`, `otf` | `font/woff`, `font/woff2`, `font/ttf`, `font/otf` |
+| `m4a`, `aac`, `opus`, `wav`, `flac` | `audio/mp4`, `audio/aac`, `audio/ogg`, `audio/wav`, `audio/flac` |
+| `m4v` | `video/mp4` |
+| `vtt` | `text/vtt` |
+| `ico`, `csv`, `md`, `htm` | `image/x-icon`, `text/csv`, `text/markdown`, `text/html` |
+
+Unknown extensions are stored as `application/octet-stream`.
+
 ## Cache-Control Headers
 
-The storage package automatically sets appropriate cache-control headers based on file type:
+The storage package sets cache-control headers based on the file path (`inferCacheControl`):
 
 | File Pattern | Cache-Control | Rationale |
 |-------------|---------------|-----------|
-| `*.json`, `*.html` | `max-age=300, stale-while-revalidate=60` | Content may update frequently |
-| `media/*`, `assets/*` | `max-age=31536000, immutable` | Media files are content-addressed |
-| `*.jpg`, `*.png`, `*.webp` | `max-age=2592000` | Images cached for 30 days |
+| `*.json`, `*.html` (incl. `manifest.json`) | `public, max-age=300, stale-while-revalidate=60` | Content may update frequently |
+| `*.pem` | `public, max-age=86400` | Public keys change rarely |
+| `content/*/assets/*`, `media/*` | `public, max-age=31536000, immutable` | Media files are content-addressed |
+| Everything else | `public, max-age=3600` | Default |
 
 You can override defaults via the `UploadOptions` parameter:
 
@@ -153,28 +218,125 @@ await storage.upload('content/news/article/index.json', jsonContent, {
 });
 ```
 
+## Guarding User-Supplied Endpoints
+
+When the endpoint or host comes from a user — for example an organization's own bucket in Studio — the caller can pin connections to addresses it has checked, so a configured endpoint cannot reach private networks:
+
+- **S3:** pass a `requestHandler` whose agents use a DNS lookup that rejects private, loopback, link-local and metadata addresses. It is handed to the S3 client unchanged (a handler instance or the handler's options).
+- **SFTP:** connect to the checked address and pass a `hostVerifier` that compares the server's host key with a pinned one. Returning `false` refuses the connection.
+
+```typescript
+import http from 'node:http';
+import https from 'node:https';
+import { createHash } from 'node:crypto';
+
+// S3: every address the endpoint resolves to goes through your checked lookup
+const s3 = StorageFactory.create('s3', {
+  endpoint: userEndpoint,
+  region: 'eu-central-1',
+  bucket: userBucket,
+  accessKeyId,
+  secretAccessKey,
+  requestHandler: {
+    httpsAgent: new https.Agent({ lookup: guardedLookup, keepAlive: true }),
+    httpAgent: new http.Agent({ lookup: guardedLookup, keepAlive: true }),
+    connectionTimeout: 15_000,
+  },
+});
+
+// SFTP: connect to the checked address, accept only the pinned host key
+const sftp = StorageFactory.create('sftp', {
+  host: checkedAddress,
+  username,
+  privateKey,
+  publicUrl,
+  hostVerifier: (key) => createHash('sha256').update(key).digest('base64') === pinnedSha256,
+});
+```
+
+## Own Storage for Studio Pods
+
+roadbeat Studio can keep an organization's pod on **storage of its own** instead of the Studio's disk: an S3-compatible bucket (`s3` for AWS S3, MinIO or any compatible service, `hetzner`, `contabo`) or an SFTP server. There is one **storage target** per role:
+
+| Role | Holds | Served from |
+|------|-------|-------------|
+| `content` | The pod: `manifest.json`, items, media — **static pods only** (no PHP runs on a bucket) | Its public address, which becomes the pod's `base_url` |
+| `bundles` | [Reader bundles](/guides/reader-bundles) | Its public address — the pod's bundle origin |
+
+Organization admins set it up in Studio under **Settings → Content Pod → Storage**, or through the API:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/v1/manage/content-pod/storage` | Both targets and their check status — credentials are never returned (`hasSecret`) |
+| `PUT /api/v1/manage/content-pod/storage/{role}` | Save a target (omit the secret to keep the stored one) |
+| `POST /api/v1/manage/content-pod/storage/{role}/check` | Check the target and use it once it passes |
+| `DELETE /api/v1/manage/content-pod/storage/{role}` | Remove the target — the files on the storage stay |
+
+These endpoints are not reachable with OAuth tokens. Credentials are write-only and sealed with `SECRETS_ENCRYPTION_KEY`; production refuses to store them without it.
+
+<Steps>
+  <Step title="Save the target">
+    Provider, endpoint or host, bucket or path, public address and credentials. Every change resets the target to `unchecked`.
+  </Step>
+  <Step title="Run the check">
+    The check writes two probe files under `_roadbeat-check/`, reads them back through the storage, fetches them from the public address, and deletes them. For `bundles` it also requires a JavaScript MIME type for `.mjs`, `Content-Security-Policy: frame-ancestors`, `https`, and an origin of its own (not the pod's pages, not the content target). Missing CORS, `Accept-Ranges: bytes` or `nosniff` are warnings.
+  </Step>
+  <Step title="Publish">
+    A passing `content` check moves the pod's `base_url` to the target — use **Publish All** to fill it. Bundles go to a passing `bundles` target with the next import.
+  </Step>
+</Steps>
+
+<Callout kind="alert">
+  A target is used **only after its check passed**. While a target exists but has not passed, publishing and bundle imports refuse with `POD_STORAGE_NOT_READY` instead of silently falling back to the Studio's disk.
+</Callout>
+
+**Egress protection.** Endpoints and SFTP hosts are user-supplied: the S3 client uses a guarded DNS lookup (no private, loopback, link-local or metadata addresses), SFTP connects to the checked address, and the SFTP host key is pinned at the first passing check — a new host or port drops the pin. `WEBHOOK_ALLOW_PRIVATE_TARGETS=true` opts private targets in for development.
+
+**Bundles on own storage.** Each version is uploaded, streamed, under `{bundleId}/{digest16}/` (pages and JSON `no-cache`, everything else `immutable`). Studio switches the bundle record and manifest entry only after the upload, then deletes the previous version — object storage has no atomic rename, so a new prefix per version gives the same effect. A plain bucket cannot send a CSP header, so a bundle origin on S3 needs a CDN or web server in front.
+
+| Error | Meaning |
+|-------|---------|
+| `POD_STORAGE_NOT_READY` | A target exists but its check has not passed |
+| `POD_REMOTE_STATIC_ONLY` (409) | Dynamic pods cannot use a `content` target; switching a pod with one to dynamic is refused |
+| `POD_BUNDLE_ORIGIN_SHARED` (400) | The bundle target would share an origin with the pod |
+| `POD_BUNDLE_TARGET_MISSING` | The pod is on its own content storage but has no `bundles` target — no bundle origin (`pod.bundles.supported = false`) |
+| `BUNDLE_TARGET_FAILED` | The upload to the bundle target failed; the live version stays and the new prefix is deleted |
+| `POD_STORAGE_IN_USE` (409) | A `bundles` target cannot be removed while bundles are served from it |
+
+Removing the `content` target restores the roadbeat address; the files on your storage are left in place.
+
 ## Implementing a Custom Provider
 
 To add support for a new storage backend, implement the `StorageProvider` interface:
 
 ```typescript
-import type { StorageProvider, UploadOptions, StorageFile } from '@roadbeat/content-pod-storage';
+import type { StorageProvider, UploadOptions, StorageFile, StorageLocalFile } from '@roadbeat/content-pod-storage';
+import { readFile } from 'node:fs/promises';
 
 export class MyCloudProvider implements StorageProvider {
   constructor(private config: { apiKey: string; bucket: string; baseUrl: string }) {}
 
   async upload(path: string, content: Buffer | string, options?: UploadOptions): Promise<string> {
     // Upload to your cloud storage
-    return path;
+    return this.getPublicUrl(path);
   }
 
   async uploadBundle(files: StorageFile[]): Promise<Map<string, string>> {
     const results = new Map<string, string>();
     for (const file of files) {
-      const uploaded = await this.upload(file.path, file.content, file.options);
-      results.set(file.path, uploaded);
+      results.set(file.path, await this.upload(file.path, file.content, { contentType: file.contentType }));
     }
     return results;
+  }
+
+  // Optional — stream from disk if your backend supports it
+  async uploadFiles(files: StorageLocalFile[]): Promise<void> {
+    for (const file of files) {
+      await this.upload(file.path, await readFile(file.localPath), {
+        contentType: file.contentType,
+        cacheControl: file.cacheControl,
+      });
+    }
   }
 
   async download(path: string): Promise<Buffer> { /* ... */ }
@@ -190,5 +352,5 @@ export class MyCloudProvider implements StorageProvider {
 ```
 
 <Callout kind="tip">
-  The `uploadBundle` method enables optimized batch uploads. Override it for providers that support parallel or multipart uploads.
+  Implement `uploadFiles` with real streaming when your backend supports it — reader bundles can hold files of up to 2 GB each.
 </Callout>
